@@ -1,0 +1,20 @@
+[project]
+name = "t1-hr-assistant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=0.3.27",
+    "langchain-openai>=0.3.33",
+    "langgraph>=0.6.7",
+    "pydantic-settings>=2.10.1",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+]

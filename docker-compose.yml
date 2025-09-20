@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  t1-hr-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: t1-hr-assistant
+    ports:
+      - "8000:8000"
+    environment:
+      - SCIBOX_API_KEY=${SCIBOX_API_KEY}
+      - PYTHONPATH=/app
+      - UV_SYSTEM_PYTHON=1
+    env_file:
+      - .env
+    volumes:
+      # Монтируем код для разработки (можно убрать в продакшене)
+      - .:/app
+      # Кэш uv для ускорения сборки
+      - uv-cache:/root/.cache/uv
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - t1-hr-network
+
+  # Опциональный сервис для мониторинга (можно раскомментировать при необходимости)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: t1-hr-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - t1-hr-assistant
+  #   networks:
+  #     - t1-hr-network
+
+volumes:
+  uv-cache:
+    driver: local
+
+networks:
+  t1-hr-network:
+    driver: bridge
