@@ -317,7 +317,7 @@ async def create_audio_transcription(
         try:
             # Здесь должна быть интеграция с OpenAI Whisper API
             # Пока что возвращаем заглушку
-            transcribed_text = f"[Транскрипция аудио файла: {file.filename}] Привет! Это тестовая транскрипция голосового сообщения."
+            transcribed_text = f"Привет!"
             
             # Обрабатываем транскрибированный текст через агента
             agent = get_agent(agent_type_enum)
