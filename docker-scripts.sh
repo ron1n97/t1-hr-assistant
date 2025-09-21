@@ -41,22 +41,27 @@ check_env() {
 
 # Сборка и запуск
 build_and_run() {
-    log "Сборка и запуск T1 HR Assistant..."
+    log "Сборка и запуск T1 HR Assistant с Willow Inference Server..."
     check_env
     
-    # Проверяем, какой Dockerfile использовать
-    if [ "$2" = "pip" ]; then
+    # Проверяем, какой режим использовать
+    if [ "$2" = "prod" ]; then
+        log "Запуск в продакшен режиме с встроенным Willow"
+        docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+    elif [ "$2" = "pip" ]; then
         log "Используется Dockerfile с pip"
         DOCKERFILE=Dockerfile.pip docker-compose up --build -d
     else
-        log "Используется Dockerfile с uv"
+        log "Используется Dockerfile с uv (разработка)"
         docker-compose up --build -d
     fi
     
     success "Сервис запущен!"
     log "API доступен по адресу: http://localhost:8000"
+    log "Willow Inference Server: http://localhost:8001"
     log "Документация: http://localhost:8000/docs"
     log "Проверка здоровья: http://localhost:8000/health"
+    log "Проверка Willow: http://localhost:8001/health"
 }
 
 # Запуск
@@ -112,9 +117,16 @@ test() {
     log "Ожидание запуска сервиса..."
     sleep 10
     
-    # Проверка здоровья
+    # Проверка здоровья основного сервиса
     if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-        success "Сервис здоров!"
+        success "Основной сервис здоров!"
+        
+        # Проверка Willow сервера
+        if curl -f http://localhost:8001/health > /dev/null 2>&1; then
+            success "Willow Inference Server работает!"
+        else
+            warning "Willow Inference Server недоступен (возможно, используется локальный)"
+        fi
         
         # Тест HR агента
         log "Тестирование HR агента..."
@@ -140,8 +152,26 @@ test() {
             error "User агент не отвечает"
         fi
         
+        # Тест транскрипции (если Willow доступен)
+        if curl -f http://localhost:8001/health > /dev/null 2>&1; then
+            log "Тестирование транскрипции аудио..."
+            # Создаем тестовый аудио файл (заглушка)
+            echo "Тест транскрипции" > /tmp/test_audio.txt
+            response=$(curl -s -X POST "http://localhost:8000/audio/transcriptions" \
+                -F "file=@/tmp/test_audio.txt" \
+                -F "agent_type=user" \
+                -F "conversation_id=test123" 2>/dev/null || echo "Ошибка транскрипции")
+            
+            if echo "$response" | grep -q "text"; then
+                success "Транскрипция работает!"
+            else
+                warning "Транскрипция недоступна (требуется реальный аудио файл)"
+            fi
+            rm -f /tmp/test_audio.txt
+        fi
+        
     else
-        error "Сервис недоступен!"
+        error "Основной сервис недоступен!"
     fi
 }
 
@@ -172,10 +202,11 @@ help() {
     echo "  help      - Показать эту справку"
     echo ""
     echo "Примеры:"
-    echo "  $0 build       # Первый запуск с uv"
-    echo "  $0 build pip   # Первый запуск с pip"
+    echo "  $0 build       # Разработка с локальным Willow"
+    echo "  $0 build prod  # Продакшен с встроенным Willow"
+    echo "  $0 build pip   # Разработка с pip"
     echo "  $0 logs        # Просмотр логов"
-    echo "  $0 test        # Тестирование"
+    echo "  $0 test        # Тестирование всех сервисов"
 }
 
 # Основная логика

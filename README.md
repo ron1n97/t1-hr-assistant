@@ -36,18 +36,67 @@ t1-hr-assistant/
 ### 🐳 Запуск через Docker (рекомендуется)
 
 ```bash
-# 1. Создайте .env файл
-echo "SCIBOX_API_KEY=your_api_key_here" > .env
+# 1. Настройка
+cp env.example .env
+# Отредактируйте .env файл с вашим API ключом
 
-# 2. Запустите через Docker Compose
-chmod +x docker-scripts.sh
-./docker-scripts.sh build
+# 2. Запуск (один файл docker-compose.yml!)
+docker-compose up --build -d
 
-# 3. Проверьте работу
-./docker-scripts.sh test
+# 3. Проверка
+curl http://localhost:8000/health
 ```
 
-Сервер будет доступен по адресу: http://localhost:8000
+**Сервисы будут доступны:**
+- 🌐 **API:** http://localhost:8000
+- 🎨 **Frontend:** http://localhost:3000  
+- 🎤 **Willow:** http://localhost:8001
+
+### 🚀 Быстрый запуск
+
+```bash
+# Через Makefile (рекомендуется)
+make build
+
+# Или через скрипт
+./start.sh dev
+
+# Или напрямую
+docker-compose up -d
+```
+
+### 🔧 Режимы работы
+
+```bash
+# Разработка (по умолчанию)
+make dev
+# или
+docker-compose up -d
+
+# Продакшен
+make prod
+# или
+ENVIRONMENT=production MOUNT_CODE=ro docker-compose up -d
+
+# С локальным Willow
+make local
+# или
+WILLOW_SERVER_URL=http://host.docker.internal:8001 docker-compose up -d
+```
+
+### 📋 Управление через Makefile
+
+```bash
+make help     # Справка по командам
+make build    # Сборка и запуск
+make start    # Запуск сервисов
+make stop     # Остановка сервисов
+make restart  # Перезапуск
+make logs     # Просмотр логов
+make status   # Статус сервисов
+make test     # Тестирование API
+make clean    # Очистка ресурсов
+```
 
 ### 🐍 Локальная разработка
 

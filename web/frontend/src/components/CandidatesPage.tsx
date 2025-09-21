@@ -150,13 +150,96 @@ export function CandidatesPage() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(mockCandidates[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [salaryRangeFilter, setSalaryRangeFilter] = useState('all');
+  const [ageRangeFilter, setAgeRangeFilter] = useState('all');
+  const [experienceFilter, setExperienceFilter] = useState('all');
+  const [skillFilter, setSkillFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState('all');
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 
+  // Получаем уникальные значения для фильтров
+  const allLocations = [...new Set(mockCandidates.map(c => c.location))];
+  const allSkills = [...new Set(mockCandidates.flatMap(c => c.skills))];
+  const allCompanies = [...new Set(mockCandidates.flatMap(c => c.experience.map(e => e.company)))];
+
   const filteredCandidates = mockCandidates.filter(candidate => {
-    const matchesSearch = candidate.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         candidate.position.toLowerCase().includes(searchQuery.toLowerCase());
+    // Поиск по всем текстовым полям
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = searchQuery === '' || (
+      candidate.name.toLowerCase().includes(searchLower) ||
+      candidate.position.toLowerCase().includes(searchLower) ||
+      candidate.email.toLowerCase().includes(searchLower) ||
+      candidate.phone.includes(searchQuery) ||
+      candidate.telegram.toLowerCase().includes(searchLower) ||
+      candidate.skills.some(skill => skill.toLowerCase().includes(searchLower)) ||
+      candidate.experience.some(exp => 
+        exp.company.toLowerCase().includes(searchLower) ||
+        exp.position.toLowerCase().includes(searchLower) ||
+        exp.description.toLowerCase().includes(searchLower)
+      )
+    );
+
+    // Фильтр по статусу
     const matchesStatus = statusFilter === 'all' || candidate.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // Фильтр по локации
+    const matchesLocation = locationFilter === 'all' || candidate.location === locationFilter;
+    
+    // Фильтр по зарплате
+    const matchesSalary = (() => {
+      if (salaryRangeFilter === 'all') return true;
+      const salary = parseInt(candidate.salary.replace(/\D/g, ''));
+      switch (salaryRangeFilter) {
+        case '0-150': return salary < 150000;
+        case '150-200': return salary >= 150000 && salary < 200000;
+        case '200-250': return salary >= 200000 && salary < 250000;
+        case '250+': return salary >= 250000;
+        default: return true;
+      }
+    })();
+    
+    // Фильтр по возрасту
+    const matchesAge = (() => {
+      if (ageRangeFilter === 'all') return true;
+      switch (ageRangeFilter) {
+        case '20-25': return candidate.age >= 20 && candidate.age <= 25;
+        case '26-30': return candidate.age >= 26 && candidate.age <= 30;
+        case '31-35': return candidate.age >= 31 && candidate.age <= 35;
+        case '35+': return candidate.age > 35;
+        default: return true;
+      }
+    })();
+    
+    // Фильтр по опыту работы (количество лет)
+    const matchesExperience = (() => {
+      if (experienceFilter === 'all') return true;
+      const totalExperience = candidate.experience.reduce((total, exp) => {
+        const years = exp.period.includes('—') ? 
+          parseInt(exp.period.split('—')[0].trim().split(' ')[1]) - 
+          parseInt(exp.period.split('—')[1].trim().split(' ')[1]) : 1;
+        return total + Math.abs(years);
+      }, 0);
+      
+      switch (experienceFilter) {
+        case '0-1': return totalExperience <= 1;
+        case '2-3': return totalExperience >= 2 && totalExperience <= 3;
+        case '4-5': return totalExperience >= 4 && totalExperience <= 5;
+        case '5+': return totalExperience > 5;
+        default: return true;
+      }
+    })();
+    
+    // Фильтр по навыкам
+    const matchesSkill = skillFilter === 'all' || candidate.skills.includes(skillFilter);
+    
+    // Фильтр по компании
+    const matchesCompany = companyFilter === 'all' || 
+      candidate.experience.some(exp => exp.company === companyFilter);
+
+    return matchesSearch && matchesStatus && matchesLocation && 
+           matchesSalary && matchesAge && matchesExperience && 
+           matchesSkill && matchesCompany;
   });
 
   const handleScheduleInterview = () => {
@@ -180,17 +263,19 @@ export function CandidatesPage() {
           
           {/* Search and Filters */}
           <div className="space-y-3">
+            {/* Основной поиск */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
-                placeholder="Найти..."
+                placeholder="Поиск по имени, должности, навыкам, опыту..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
             
-            <div className="flex gap-2">
+            {/* Фильтры - первый ряд */}
+            <div className="grid grid-cols-2 gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Статус" />
@@ -201,51 +286,183 @@ export function CandidatesPage() {
                   <SelectItem value="in-progress">В процессе</SelectItem>
                   <SelectItem value="interview">Собеседование</SelectItem>
                   <SelectItem value="offer">Оффер</SelectItem>
+                  <SelectItem value="hired">Нанят</SelectItem>
+                  <SelectItem value="rejected">Отклонен</SelectItem>
                 </SelectContent>
               </Select>
               
-              <Select>
+              <Select value={locationFilter} onValueChange={setLocationFilter}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="HR" />
+                  <SelectValue placeholder="Локация" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Все HR</SelectItem>
-                  <SelectItem value="alex">Алексей</SelectItem>
-                  <SelectItem value="maria">Мария</SelectItem>
+                  <SelectItem value="all">Все локации</SelectItem>
+                  {allLocations.map(location => (
+                    <SelectItem key={location} value={location}>{location}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Фильтры - второй ряд */}
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={salaryRangeFilter} onValueChange={setSalaryRangeFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Зарплата" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любая зарплата</SelectItem>
+                  <SelectItem value="0-150">До 150 000 ₽</SelectItem>
+                  <SelectItem value="150-200">150 000 - 200 000 ₽</SelectItem>
+                  <SelectItem value="200-250">200 000 - 250 000 ₽</SelectItem>
+                  <SelectItem value="250+">От 250 000 ₽</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={ageRangeFilter} onValueChange={setAgeRangeFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Возраст" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любой возраст</SelectItem>
+                  <SelectItem value="20-25">20-25 лет</SelectItem>
+                  <SelectItem value="26-30">26-30 лет</SelectItem>
+                  <SelectItem value="31-35">31-35 лет</SelectItem>
+                  <SelectItem value="35+">35+ лет</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Фильтры - третий ряд */}
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={experienceFilter} onValueChange={setExperienceFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Опыт работы" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Любой опыт</SelectItem>
+                  <SelectItem value="0-1">0-1 год</SelectItem>
+                  <SelectItem value="2-3">2-3 года</SelectItem>
+                  <SelectItem value="4-5">4-5 лет</SelectItem>
+                  <SelectItem value="5+">5+ лет</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={skillFilter} onValueChange={setSkillFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Навыки" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все навыки</SelectItem>
+                  {allSkills.map(skill => (
+                    <SelectItem key={skill} value={skill}>{skill}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Фильтр по компании */}
+            <div>
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Компания" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все компании</SelectItem>
+                  {allCompanies.map(company => (
+                    <SelectItem key={company} value={company}>{company}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Счетчик результатов и сброс фильтров */}
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Найдено: {filteredCandidates.length} из {mockCandidates.length} кандидатов
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('all');
+                  setLocationFilter('all');
+                  setSalaryRangeFilter('all');
+                  setAgeRangeFilter('all');
+                  setExperienceFilter('all');
+                  setSkillFilter('all');
+                  setCompanyFilter('all');
+                }}
+                className="text-xs"
+              >
+                Сбросить фильтры
+              </Button>
             </div>
           </div>
         </div>
 
         {/* Candidates List */}
         <div className="overflow-auto">
-          {filteredCandidates.map((candidate) => (
-            <div
-              key={candidate.id}
-              className={`p-4 border-b cursor-pointer hover:bg-gray-50 transition-colors ${
-                selectedCandidate?.id === candidate.id ? 'bg-blue-50 border-blue-200' : ''
-              }`}
-              onClick={() => setSelectedCandidate(candidate)}
-            >
-              <div className="flex items-start gap-3">
-                <Avatar className="w-12 h-12">
-                  <AvatarImage src={candidate.avatar} />
-                  <AvatarFallback>
-                    {candidate.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm">{candidate.name}</h4>
-                  <p className="text-sm text-muted-foreground mb-1">{candidate.position}</p>
-                  <p className="text-xs text-muted-foreground">{candidate.createdAt}</p>
-                  <Badge className={`text-xs mt-1 ${statusColors[candidate.status]}`}>
-                    {statusLabels[candidate.status]}
-                  </Badge>
+          {filteredCandidates.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Кандидаты не найдены</p>
+              <p className="text-sm">Попробуйте изменить параметры поиска</p>
+            </div>
+          ) : (
+            filteredCandidates.map((candidate) => (
+              <div
+                key={candidate.id}
+                className={`p-4 border-b cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedCandidate?.id === candidate.id ? 'bg-blue-50 border-blue-200' : ''
+                }`}
+                onClick={() => setSelectedCandidate(candidate)}
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage src={candidate.avatar} />
+                    <AvatarFallback>
+                      {candidate.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">{candidate.name}</h4>
+                        <p className="text-sm text-muted-foreground mb-1">{candidate.position}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                          <span>{candidate.age} лет</span>
+                          <span>•</span>
+                          <span>{candidate.location}</span>
+                          <span>•</span>
+                          <span className="font-medium text-green-600">{candidate.salary}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {candidate.skills.slice(0, 3).map(skill => (
+                            <Badge key={skill} variant="secondary" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {candidate.skills.length > 3 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{candidate.skills.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">{candidate.createdAt}</p>
+                          <Badge className={`text-xs ${statusColors[candidate.status]}`}>
+                            {statusLabels[candidate.status]}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

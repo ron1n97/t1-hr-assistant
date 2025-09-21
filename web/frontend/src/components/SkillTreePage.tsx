@@ -3,7 +3,11 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { CheckCircle, Circle, Lock, Star, Target } from 'lucide-react';
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Label } from './ui/label';
+import { CheckCircle, Circle, Lock, Star, Target, Plus, TrendingUp, Award, Briefcase } from 'lucide-react';
 
 interface SkillNode {
   id: string;
@@ -16,6 +20,26 @@ interface SkillNode {
   prerequisites?: string[];
   children?: string[];
   points: number;
+}
+
+interface CareerPosition {
+  id: string;
+  title: string;
+  company: string;
+  period: string;
+  status: 'past' | 'current' | 'future';
+  description: string;
+  xpGained: number;
+}
+
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  type: 'project' | 'achievement' | 'certification';
+  xpReward: number;
+  date: string;
+  category: string;
 }
 
 const skillTree: SkillNode[] = [
@@ -158,6 +182,77 @@ const skillTree: SkillNode[] = [
   }
 ];
 
+// Данные карьерного пути
+const careerPath: CareerPosition[] = [
+  {
+    id: '1',
+    title: 'Junior Frontend Developer',
+    company: 'Яндекс',
+    period: '2020-2022',
+    status: 'past',
+    description: 'Разработка клиентской части веб-приложений',
+    xpGained: 500
+  },
+  {
+    id: '2',
+    title: 'Middle Frontend Developer',
+    company: 'T1',
+    period: '2022-настоящее время',
+    status: 'current',
+    description: 'Разработка сложных веб-систем и архитектуры',
+    xpGained: 800
+  },
+  {
+    id: '3',
+    title: 'Senior Frontend Developer',
+    company: 'T1',
+    period: 'Планируется',
+    status: 'future',
+    description: 'Техническое лидерство и менторство',
+    xpGained: 0
+  },
+  {
+    id: '4',
+    title: 'Lead Frontend Developer',
+    company: 'T1',
+    period: 'Будущее',
+    status: 'future',
+    description: 'Управление командой и архитектурные решения',
+    xpGained: 0
+  }
+];
+
+// Достижения пользователя
+const userAchievements: Achievement[] = [
+  {
+    id: '1',
+    title: 'Завершение проекта iModule 5+1',
+    description: 'Успешная разработка и внедрение нового модуля',
+    type: 'project',
+    xpReward: 300,
+    date: '2023-12-15',
+    category: 'Разработка'
+  },
+  {
+    id: '2',
+    title: 'Сертификация React Developer',
+    description: 'Получение официального сертификата React',
+    type: 'certification',
+    xpReward: 200,
+    date: '2023-10-20',
+    category: 'Обучение'
+  },
+  {
+    id: '3',
+    title: 'Менторство Junior разработчика',
+    description: 'Помощь в развитии нового сотрудника',
+    type: 'achievement',
+    xpReward: 150,
+    date: '2023-11-05',
+    category: 'Лидерство'
+  }
+];
+
 const getStatusIcon = (status: string, level: number, maxLevel: number) => {
   switch (status) {
     case 'completed':
@@ -185,11 +280,23 @@ const getStatusColor = (status: string) => {
 
 export function SkillTreePage() {
   const [selectedSkill, setSelectedSkill] = useState<SkillNode | null>(null);
+  const [achievements, setAchievements] = useState<Achievement[]>(userAchievements);
+  const [showAddAchievement, setShowAddAchievement] = useState(false);
+  const [newAchievement, setNewAchievement] = useState({
+    title: '',
+    description: '',
+    type: 'project' as 'project' | 'achievement' | 'certification',
+    category: ''
+  });
+  
   const categories = Array.from(new Set(skillTree.map(s => s.category)));
   
-  const totalPoints = skillTree.reduce((sum, skill) => sum + skill.points, 0);
-  const maxPossiblePoints = skillTree.reduce((sum, skill) => sum + (skill.maxLevel * 100), 0);
-  const completionPercentage = Math.round((totalPoints / maxPossiblePoints) * 100);
+  // Расчет XP и уровня
+  const totalXP = achievements.reduce((sum, achievement) => sum + achievement.xpReward, 0);
+  const currentLevel = Math.floor(totalXP / 1000) + 1;
+  const xpInCurrentLevel = totalXP % 1000;
+  const xpToNextLevel = 1000 - xpInCurrentLevel;
+  const levelProgress = (xpInCurrentLevel / 1000) * 100;
   
   const completedSkills = skillTree.filter(s => s.status === 'completed').length;
   const totalSkills = skillTree.length;
@@ -205,6 +312,47 @@ export function SkillTreePage() {
     console.log(`Повысить уровень навыка: ${skillId}`);
   };
 
+  const handleAddAchievement = () => {
+    if (newAchievement.title && newAchievement.description && newAchievement.category) {
+      const randomXP = Math.floor(Math.random() * 500) + 100; // 100-600 XP
+      const achievement: Achievement = {
+        id: Date.now().toString(),
+        title: newAchievement.title,
+        description: newAchievement.description,
+        type: newAchievement.type,
+        xpReward: randomXP,
+        date: new Date().toISOString().split('T')[0],
+        category: newAchievement.category
+      };
+      
+      setAchievements([...achievements, achievement]);
+      setNewAchievement({ title: '', description: '', type: 'project', category: '' });
+      setShowAddAchievement(false);
+    }
+  };
+
+  const getCareerStatusIcon = (status: string) => {
+    switch (status) {
+      case 'past':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'current':
+        return <Target className="w-5 h-5 text-blue-500" />;
+      case 'future':
+        return <Lock className="w-5 h-5 text-gray-400" />;
+      default:
+        return <Circle className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getCareerStatusColor = (status: string) => {
+    switch (status) {
+      case 'past': return 'border-green-500 bg-green-50';
+      case 'current': return 'border-blue-500 bg-blue-50';
+      case 'future': return 'border-gray-300 bg-gray-50';
+      default: return 'border-gray-300 bg-white';
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Заголовок и статистика */}
@@ -213,39 +361,186 @@ export function SkillTreePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Star className="w-5 h-5 text-yellow-500" />
-              Очки навыков
+              XP
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalPoints}</div>
-            <div className="text-sm text-muted-foreground">из {maxPossiblePoints} возможных</div>
+            <div className="text-2xl font-bold">{totalXP}</div>
+            <div className="text-sm text-muted-foreground">опыта накоплено</div>
+            <Progress value={levelProgress} className="mt-2" />
+            <div className="text-xs text-muted-foreground mt-1">
+              {xpInCurrentLevel}/1000 до следующего уровня
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Прогресс</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" />
+              Уровень
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{completionPercentage}%</div>
-            <Progress value={completionPercentage} className="mt-2" />
+            <div className="text-2xl font-bold">{currentLevel}</div>
+            <div className="text-sm text-muted-foreground">
+              При повышении уровня - увеличивается шанс получения повышения или обновления грейда (зарплаты)
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Завершенные навыки</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-purple-500" />
+              Достижения
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{completedSkills}/{totalSkills}</div>
-            <div className="text-sm text-muted-foreground">навыков изучено</div>
+            <div className="text-2xl font-bold">{achievements.length}</div>
+            <div className="text-sm text-muted-foreground">достижений получено</div>
+            <Dialog open={showAddAchievement} onOpenChange={setShowAddAchievement}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="mt-2 w-full">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Добавить достижение
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Добавить новое достижение</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="title">Название</Label>
+                    <Input
+                      id="title"
+                      value={newAchievement.title}
+                      onChange={(e) => setNewAchievement({...newAchievement, title: e.target.value})}
+                      placeholder="Название проекта или достижения"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Описание</Label>
+                    <Textarea
+                      id="description"
+                      value={newAchievement.description}
+                      onChange={(e) => setNewAchievement({...newAchievement, description: e.target.value})}
+                      placeholder="Подробное описание достижения"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="category">Категория</Label>
+                    <Input
+                      id="category"
+                      value={newAchievement.category}
+                      onChange={(e) => setNewAchievement({...newAchievement, category: e.target.value})}
+                      placeholder="Например: Разработка, Обучение, Лидерство"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="type">Тип</Label>
+                    <select
+                      id="type"
+                      value={newAchievement.type}
+                      onChange={(e) => setNewAchievement({...newAchievement, type: e.target.value as 'project' | 'achievement' | 'certification'})}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="project">Проект</option>
+                      <option value="achievement">Достижение</option>
+                      <option value="certification">Сертификация</option>
+                    </select>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowAddAchievement(false)}>
+                      Отмена
+                    </Button>
+                    <Button onClick={handleAddAchievement}>
+                      Добавить
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
       </div>
 
+      {/* Карьерный путь */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+            <Briefcase className="w-6 h-6" />
+            Карьерный путь
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {careerPath.map((position, index) => (
+              <Card
+                key={position.id}
+                className={`cursor-pointer transition-all ${getCareerStatusColor(position.status)} ${
+                  index > 0 ? 'relative' : ''
+                }`}
+              >
+                {index > 0 && (
+                  <div className="absolute -left-2 top-1/2 transform -translate-y-1/2 w-4 h-0.5 bg-gray-300"></div>
+                )}
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {getCareerStatusIcon(position.status)}
+                      <h4 className="text-sm font-medium">{position.title}</h4>
+                    </div>
+                    {position.xpGained > 0 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{position.xpGained} XP
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-1">{position.company}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{position.period}</p>
+                  <p className="text-xs text-muted-foreground">{position.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* Достижения */}
+        <div>
+          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+            <Award className="w-6 h-6" />
+            Последние достижения
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {achievements.slice(-6).reverse().map(achievement => (
+              <Card key={achievement.id} className="border-purple-200 bg-purple-50">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-4 h-4 text-purple-500" />
+                      <h4 className="text-sm font-medium">{achievement.title}</h4>
+                    </div>
+                    <Badge className="text-xs bg-purple-100 text-purple-800">
+                      +{achievement.xpReward} XP
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">{achievement.description}</p>
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-xs">{achievement.category}</Badge>
+                    <span className="text-xs text-muted-foreground">{achievement.date}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Дерево навыков */}
+        {/* Прогресс навыков */}
         <div className="lg:col-span-2 space-y-6">
+          <h2 className="text-2xl font-bold mb-4">Прогресс</h2>
           {categories.map(category => (
             <div key={category}>
               <h3 className="mb-4">{category}</h3>

@@ -125,15 +125,11 @@ class UserRequestServer:
             
         elif not profile.is_complete():
             # Профиль существует, но не заполнен полностью
-            completion_percentage = profile.get_completion_percentage()
+            # Всегда переходим в normal_chat, даже если профиль частично заполнен
             state["profile_checked"] = True
-            state["profile_complete"] = False
-            state["current_mode"] = "profile_setup"
-            state["messages"].append(AIMessage(
-                content=f"Ваш профиль заполнен на {completion_percentage:.1f}%. "
-                       "Давайте продолжим заполнение недостающих данных."
-            ))
-            logger.info(f"Профиль неполный ({completion_percentage:.1f}%), продолжаем заполнение")
+            state["profile_complete"] = True
+            state["current_mode"] = "normal_chat"
+            logger.info("Профиль частично заполнен, переходим к обычному режиму")
             
         else:
             # Профиль заполнен полностью
@@ -389,26 +385,21 @@ class UserRequestServer:
             if "experience" in extracted_info:
                 profile.basicInfo.itExperience = extracted_info["experience"]
                 updated_fields.append(f"опыт: {extracted_info['experience']}")
+            if "specialization" in extracted_info:
+                profile.currentRole.specialization = extracted_info["specialization"]
+                updated_fields.append(f"специализация: {extracted_info['specialization']}")
+            if "functional_role" in extracted_info:
+                profile.currentRole.functionalRole = extracted_info["functional_role"]
+                updated_fields.append(f"функциональная роль: {extracted_info['functional_role']}")
             
             # Сохраняем профиль
             logger.info(f"Пытаемся сохранить профиль с данными: {updated_fields}")
             if save_user_profile(profile):
-                completion = profile.get_completion_percentage()
-                logger.info(f"Профиль успешно сохранен, заполнение: {completion:.1f}%")
+                logger.info("Профиль успешно сохранен")
                 
-                # Определяем следующий шаг
-                if completion < 50:
-                    return (f"✅ Сохранено: {', '.join(updated_fields)}. "
-                           f"Профиль заполнен на {completion:.1f}%. "
-                           f"Теперь расскажите о вашей специализации и функциональной роли.")
-                elif completion < 80:
-                    return (f"✅ Сохранено: {', '.join(updated_fields)}. "
-                           f"Профиль заполнен на {completion:.1f}%. "
-                           f"Теперь расскажите о вашем образовании: учебное заведение, специальность, год окончания.")
-                else:
-                    return (f"✅ Сохранено: {', '.join(updated_fields)}. "
-                           f"Профиль заполнен на {completion:.1f}%. "
-                           f"Отлично! Теперь вы можете искать материалы или получать рекомендации.")
+                # После первого успешного извлечения считаем профиль заполненным
+                return (f"✅ Отлично! Ваш профиль создан: {', '.join(updated_fields)}. "
+                       f"Теперь я могу помочь вам с поиском материалов, рекомендациями и ответами на вопросы!")
             else:
                 return "Произошла ошибка при сохранении информации. Попробуйте еще раз."
         else:
@@ -462,10 +453,40 @@ class UserRequestServer:
         """Простая обработка запросов"""
         logger.info("Простая обработка запросов")
         
+        # Сначала пытаемся обновить профиль из сообщения
+        profile = load_user_profile()
+        if profile:
+            extracted_info = self._extract_profile_info(message)
+            if extracted_info:
+                # Обновляем профиль
+                updated_fields = []
+                if "department" in extracted_info:
+                    profile.basicInfo["department"] = extracted_info["department"]
+                    updated_fields.append(f"подразделение: {extracted_info['department']}")
+                if "position" in extracted_info:
+                    profile.basicInfo["position"] = extracted_info["position"]
+                    updated_fields.append(f"должность: {extracted_info['position']}")
+                if "grade" in extracted_info:
+                    profile.basicInfo["grade"] = extracted_info["grade"]
+                    updated_fields.append(f"грейд: {extracted_info['grade']}")
+                if "experience" in extracted_info:
+                    profile.basicInfo["itExperience"] = extracted_info["experience"]
+                    updated_fields.append(f"опыт: {extracted_info['experience']}")
+                if "specialization" in extracted_info:
+                    profile.currentRole["specialization"] = extracted_info["specialization"]
+                    updated_fields.append(f"специализация: {extracted_info['specialization']}")
+                if "functional_role" in extracted_info:
+                    profile.currentRole["functionalRole"] = extracted_info["functional_role"]
+                    updated_fields.append(f"функциональная роль: {extracted_info['functional_role']}")
+                
+                if updated_fields:
+                    save_user_profile(profile)
+                    logger.info(f"Профиль обновлен: {', '.join(updated_fields)}")
+        
         message_lower = message.lower()
         
         # Проверяем тип запроса
-        if any(word in message_lower for word in ["найди", "поиск", "ищу", "покажи", "материалы", "курсы"]):
+        if any(word in message_lower for word in ["найди", "поиск", "ищу", "покажи", "материалы", "курсы", "какие"]):
             return self._handle_material_search_simple(message)
         elif any(word in message_lower for word in ["рекомендуй", "посоветуй", "что изучить"]):
             return self._handle_recommendations_simple()
@@ -477,7 +498,13 @@ class UserRequestServer:
         from .material_search import MaterialSearchEngine
         
         search_engine = MaterialSearchEngine(self.llm)
-        materials = search_engine.search_materials(query)
+        
+        # Если запрос общий (типа "какие материалы доступны"), показываем все
+        query_lower = query.lower()
+        if any(word in query_lower for word in ["какие", "доступны", "есть", "покажи все", "список"]):
+            materials = search_engine.materials
+        else:
+            materials = search_engine.search_materials(query)
         
         if not materials:
             return "К сожалению, по вашему запросу ничего не найдено. Попробуйте изменить поисковые термины."
@@ -553,8 +580,8 @@ class UserRequestServer:
             patterns = [
                 r"работаю\s+в\s+([а-яё\w\s]+?)(?:\s|$|,|\.)",
                 r"в\s+([а-яё\w\s]+?)(?:\s+отдел|\s+подразделение|\s+департамент|\s+отделении)",
-                r"отдел\s+([а-яё\w\s]+?)(?:\s|$|,|\.)",
                 r"отделении\s+([а-яё\w\s]+?)(?:\s|$|,|\.)",
+                r"отдел\s+([а-яё\w\s]+?)(?:\s|$|,|\.)",
                 r"подразделение\s+([а-яё\w\s]+?)(?:\s|$|,|\.)"
             ]
             
@@ -624,6 +651,38 @@ class UserRequestServer:
             if years_match:
                 years = years_match.group(1)
                 info["experience"] = f"{years} лет"
+        
+        # Извлекаем специализацию
+        if any(word in message_lower for word in ["специализируюсь", "специализация", "работаю в области"]):
+            specialization_patterns = [
+                r"специализируюсь\s+на\s+([а-яё\w\s\-]+?)(?:\s|$|,|\.)",
+                r"специализация\s*[:\-]?\s*([а-яё\w\s\-]+?)(?:\s|$|,|\.)",
+                r"работаю\s+в\s+области\s+([а-яё\w\s\-]+?)(?:\s|$|,|\.)"
+            ]
+            
+            for pattern in specialization_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    specialization = match.group(1).strip()
+                    if len(specialization) > 2:
+                        info["specialization"] = specialization
+                        break
+        
+        # Извлекаем функциональную роль
+        if any(word in message_lower for word in ["функциональная роль", "роль", "я"]):
+            role_patterns = [
+                r"функциональная\s+роль\s*[:\-]?\s*([а-яё\w\s\-]+?)(?:\s|$|,|\.)",
+                r"роль\s*[:\-]?\s*([а-яё\w\s\-]+?)(?:\s|$|,|\.)",
+                r"я\s+([а-яё\w\s\-]*?(?:программист|аналитик|менеджер|дизайнер|тестировщик|инженер))"
+            ]
+            
+            for pattern in role_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    role = match.group(1).strip()
+                    if len(role) > 2:
+                        info["functional_role"] = role
+                        break
         
         logger.info(f"Извлеченная информация: {info}")
         return info

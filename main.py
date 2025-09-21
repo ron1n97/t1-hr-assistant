@@ -286,10 +286,10 @@ async def get_conversation_history(conversation_id: str):
     }
 
 
-async def transcribe_audio_with_openai(file_path: str, file_extension: str) -> str:
-    """
-    Отправляет аудио файл на OpenAI API для транскрипции
-    """
+async def transcribe_audio_with_whisper(file_path: str, file_extension: str) -> str:
+        """
+        Отправляет аудио файл на Whisper сервер для транскрипции
+        """
     # Определяем MIME тип на основе расширения файла
     mime_types = {
         '.mp3': 'audio/mpeg',
@@ -298,7 +298,9 @@ async def transcribe_audio_with_openai(file_path: str, file_extension: str) -> s
         '.mpga': 'audio/mpeg',
         '.m4a': 'audio/mp4',
         '.wav': 'audio/wav',
-        '.webm': 'audio/webm'
+        '.webm': 'audio/webm',
+        '.flac': 'audio/flac',
+        '.ogg': 'audio/ogg'
     }
     
     mime_type = mime_types.get(file_extension.lower(), 'audio/mpeg')
@@ -309,23 +311,29 @@ async def transcribe_audio_with_openai(file_path: str, file_extension: str) -> s
                 files = {
                     'file': ('audio', audio_file, mime_type)
                 }
-                data = {
-                    'model': 'whisper-1'
-                }
-                headers = {
-                    'Authorization': f'Bearer {settings.scibox_api_key}'
-                }
                 
-                logger.info(f"Отправка аудио файла на транскрипцию: {file_path} (тип: {mime_type})")
+                        # Параметры для Whisper сервера
+                        data = {
+                            'language': 'ru',    # Язык - русский
+                            'response_format': 'json'  # Формат ответа
+                        }
+                
+                # Заголовки для Willow
+                headers = {}
+                if settings.willow_api_key:
+                    headers['Authorization'] = f'Bearer {settings.willow_api_key}'
+                
+                        logger.info(f"Отправка аудио файла на Whisper сервер: {file_path} (тип: {mime_type})")
+                        logger.info(f"Whisper сервер URL: {settings.willow_server_url}")
                 
                 response = await client.post(
-                    'https://llm.t1v.scibox.tech/v1/audio/transcriptions',
+                    f'{settings.willow_server_url}/v1/audio/transcriptions',
                     files=files,
                     data=data,
                     headers=headers
                 )
                 
-                logger.info(f"Ответ от API транскрипции: {response.status_code}")
+                logger.info(f"Ответ от Whisper сервера: {response.status_code}")
                 
                 if response.status_code == 200:
                     result = response.json()
@@ -333,47 +341,53 @@ async def transcribe_audio_with_openai(file_path: str, file_extension: str) -> s
                     logger.info(f"Транскрипция успешна, длина текста: {len(transcribed_text)} символов")
                     return transcribed_text
                 elif response.status_code == 401:
-                    logger.error("Ошибка авторизации при транскрипции")
+                    logger.error("Ошибка авторизации при транскрипции через Whisper")
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Ошибка авторизации при транскрипции аудио"
+                        detail="Ошибка авторизации при транскрипции аудио через Whisper сервер"
                     )
                 elif response.status_code == 413:
                     logger.error("Файл слишком большой для транскрипции")
                     raise HTTPException(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail="Аудио файл слишком большой. Максимальный размер: 25MB"
+                        detail="Аудио файл слишком большой. Максимальный размер: 100MB"
                     )
                 elif response.status_code == 400:
-                    logger.error(f"Ошибка валидации: {response.text}")
+                    logger.error(f"Ошибка валидации Whisper: {response.text}")
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Ошибка валидации аудио файла: {response.text}"
                     )
+                elif response.status_code == 503:
+                    logger.error("Whisper сервер недоступен")
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Whisper сервер недоступен. Проверьте, что сервер запущен."
+                    )
                 else:
-                    logger.error(f"Ошибка транскрипции: {response.status_code} - {response.text}")
+                    logger.error(f"Ошибка транскрипции Whisper: {response.status_code} - {response.text}")
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail=f"Ошибка транскрипции аудио: {response.text}"
+                        detail=f"Ошибка транскрипции аудио через Whisper: {response.text}"
                     )
                     
     except httpx.TimeoutException:
-        logger.error("Таймаут при транскрипции аудио")
+        logger.error("Таймаут при транскрипции аудио через Whisper")
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Таймаут при транскрипции аудио. Попробуйте файл меньшего размера."
+            detail="Таймаут при транскрипции аудио через Whisper. Попробуйте файл меньшего размера."
         )
     except httpx.ConnectError:
-        logger.error("Ошибка подключения к серверу транскрипции")
+        logger.error("Ошибка подключения к Whisper серверу")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Сервис транскрипции недоступен"
+            detail="Whisper сервер недоступен. Проверьте, что сервер запущен на {settings.willow_server_url}"
         )
     except Exception as e:
-        logger.error(f"Неожиданная ошибка при транскрипции аудио: {e}")
+        logger.error(f"Неожиданная ошибка при транскрипции аудио через Whisper: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка при транскрипции аудио: {str(e)}"
+            detail=f"Ошибка при транскрипции аудио через Whisper: {str(e)}"
         )
 
 
@@ -383,13 +397,16 @@ async def create_audio_transcription(
     agent_type: str = Form(...),
     conversation_id: Optional[str] = Form(None)
 ):
-    """
-    Транскрипция аудио файла в текст
-    
-    - **file**: Аудио файл (поддерживаются форматы: mp3, mp4, mpeg, mpga, m4a, wav, webm)
-    - **agent_type**: Тип агента для обработки транскрибированного текста (hr или user)
-    - **conversation_id**: Идентификатор сессии (опционально)
-    """
+        """
+        Транскрипция аудио файла в текст через Whisper сервер
+        
+        - **file**: Аудио файл (поддерживаются форматы: mp3, mp4, mpeg, mpga, m4a, wav, webm, flac, ogg)
+        - **agent_type**: Тип агента для обработки транскрибированного текста (hr или user)
+        - **conversation_id**: Идентификатор сессии (опционально)
+        
+        Использует Whisper сервер для транскрипции на русском языке.
+        Максимальный размер файла: 100MB.
+        """
     start_time = time.time()
     
     try:
@@ -402,8 +419,8 @@ async def create_audio_transcription(
                 detail=f"Неверный тип агента: {agent_type}. Доступные типы: hr, user"
             )
         
-        # Валидация типа файла
-        allowed_extensions = {'.mp3', '.mp4', '.mpeg', '.mpga', '.m4a', '.wav', '.webm'}
+        # Валидация типа файла (Willow поддерживает больше форматов)
+        allowed_extensions = {'.mp3', '.mp4', '.mpeg', '.mpga', '.m4a', '.wav', '.webm', '.flac', '.ogg'}
         file_extension = os.path.splitext(file.filename)[1].lower()
         
         if file_extension not in allowed_extensions:
@@ -412,13 +429,13 @@ async def create_audio_transcription(
                 detail=f"Неподдерживаемый формат файла: {file_extension}. Поддерживаемые форматы: {', '.join(allowed_extensions)}"
             )
         
-        # Валидация размера файла (максимум 25MB для OpenAI Whisper)
-        max_file_size = 25 * 1024 * 1024  # 25MB в байтах
+        # Валидация размера файла (максимум 100MB для Willow Inference Server)
+        max_file_size = 100 * 1024 * 1024  # 100MB в байтах
         content = await file.read()
         if len(content) > max_file_size:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"Файл слишком большой: {len(content)} байт. Максимальный размер: {max_file_size} байт (25MB)"
+                detail=f"Файл слишком большой: {len(content)} байт. Максимальный размер: {max_file_size} байт (100MB)"
             )
         
         # Сохраняем файл во временную директорию
@@ -427,8 +444,8 @@ async def create_audio_transcription(
             temp_file_path = temp_file.name
         
         try:
-            # Транскрибируем аудио через OpenAI API
-            transcribed_text = await transcribe_audio_with_openai(temp_file_path, file_extension)
+                    # Транскрибируем аудио через Whisper сервер
+                    transcribed_text = await transcribe_audio_with_whisper(temp_file_path, file_extension)
             
             if not transcribed_text.strip():
                 raise HTTPException(
@@ -485,11 +502,12 @@ async def create_audio_transcription_v1(
     agent_type: str = Form(...),
     conversation_id: Optional[str] = Form(None)
 ):
-    """
-    Транскрипция аудио файла в текст (v1 API)
-    
-    Алиас для /audio/transcriptions для совместимости с OpenAI API
-    """
+        """
+        Транскрипция аудио файла в текст (v1 API)
+        
+        Алиас для /audio/transcriptions для совместимости с OpenAI API.
+        Использует Whisper сервер для транскрипции.
+        """
     return await create_audio_transcription(file, agent_type, conversation_id)
 
 
