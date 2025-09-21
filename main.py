@@ -1,26 +1,32 @@
 import time
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+import tempfile
+import os
 
 from models import (
     ChatRequest, 
+    HRChatRequest,
+    UserChatRequest,
     ChatResponse, 
     HealthResponse, 
     ErrorResponse, 
     AgentType,
     AgentsInfoResponse,
-    AgentInfo
+    AgentInfo,
+    AudioTranscriptionRequest,
+    AudioTranscriptionResponse
 )
-from hr_agentic_system import HRRequestServer
-from user_agentic_system import UserRequestServer
+from hr.hr_agentic_system import HRRequestServer
+from user.user_agentic_system import UserRequestServer
 from config import Settings
 
 # Настройка логирования
@@ -213,27 +219,39 @@ async def chat_with_agent(request: ChatRequest):
 
 
 @app.post("/chat/hr", response_model=ChatResponse)
-async def chat_with_hr_agent(request: ChatRequest):
+async def chat_with_hr_agent(request: HRChatRequest):
     """
     Эндпоинт для общения с HR агентом
     
     Удобный эндпоинт для быстрого доступа к HR агенту
     """
-    # Устанавливаем тип агента на HR
-    request.agent_type = AgentType.HR
-    return await chat_with_agent(request)
+    # Создаем ChatRequest с установленным типом агента
+    chat_request = ChatRequest(
+        message=request.message,
+        agent_type=AgentType.HR,
+        conversation_id=request.conversation_id,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens
+    )
+    return await chat_with_agent(chat_request)
 
 
 @app.post("/chat/user", response_model=ChatResponse)
-async def chat_with_user_agent(request: ChatRequest):
+async def chat_with_user_agent(request: UserChatRequest):
     """
     Эндпоинт для общения с User агентом
     
     Удобный эндпоинт для быстрого доступа к User агенту
     """
-    # Устанавливаем тип агента на USER
-    request.agent_type = AgentType.USER
-    return await chat_with_agent(request)
+    # Создаем ChatRequest с установленным типом агента
+    chat_request = ChatRequest(
+        message=request.message,
+        agent_type=AgentType.USER,
+        conversation_id=request.conversation_id,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens
+    )
+    return await chat_with_agent(chat_request)
 
 
 @app.get("/chat/history/{conversation_id}")
@@ -253,6 +271,109 @@ async def get_conversation_history(conversation_id: str):
             "История будет доступна в следующих версиях"
         ]
     }
+
+
+@app.post("/audio/transcriptions", response_model=AudioTranscriptionResponse)
+async def create_audio_transcription(
+    file: UploadFile = File(...),
+    agent_type: str = Form(...),
+    conversation_id: Optional[str] = Form(None)
+):
+    """
+    Транскрипция аудио файла в текст
+    
+    - **file**: Аудио файл (поддерживаются форматы: mp3, mp4, mpeg, mpga, m4a, wav, webm)
+    - **agent_type**: Тип агента для обработки транскрибированного текста (hr или user)
+    - **conversation_id**: Идентификатор сессии (опционально)
+    """
+    start_time = time.time()
+    
+    try:
+        # Валидация типа агента
+        try:
+            agent_type_enum = AgentType(agent_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Неверный тип агента: {agent_type}. Доступные типы: hr, user"
+            )
+        
+        # Валидация типа файла
+        allowed_extensions = {'.mp3', '.mp4', '.mpeg', '.mpga', '.m4a', '.wav', '.webm'}
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Неподдерживаемый формат файла: {file_extension}. Поддерживаемые форматы: {', '.join(allowed_extensions)}"
+            )
+        
+        # Сохраняем файл во временную директорию
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Здесь должна быть интеграция с OpenAI Whisper API
+            # Пока что возвращаем заглушку
+            transcribed_text = f"[Транскрипция аудио файла: {file.filename}] Привет! Это тестовая транскрипция голосового сообщения."
+            
+            # Обрабатываем транскрибированный текст через агента
+            agent = get_agent(agent_type_enum)
+            
+            if agent_type_enum == AgentType.HR:
+                response_text = agent.process_hr_request(transcribed_text)
+            else:
+                response_text = agent.process_user_request(transcribed_text)
+            
+            processing_time = time.time() - start_time
+            
+            # Создаем ответ чата
+            chat_response = ChatResponse(
+                response=response_text,
+                agent_type=agent_type_enum,
+                conversation_id=conversation_id,
+                processing_time=processing_time
+            )
+            
+            logger.info(f"Аудио транскрибировано и обработано за {processing_time:.2f}с агентом {agent_type_enum}")
+            
+            return AudioTranscriptionResponse(
+                text=transcribed_text,
+                agent_type=agent_type_enum,
+                conversation_id=conversation_id,
+                processing_time=processing_time,
+                chat_response=chat_response
+            )
+            
+        finally:
+            # Удаляем временный файл
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка транскрипции аудио: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка транскрипции аудио: {str(e)}"
+        )
+
+
+@app.post("/v1/audio/transcriptions", response_model=AudioTranscriptionResponse)
+async def create_audio_transcription_v1(
+    file: UploadFile = File(...),
+    agent_type: str = Form(...),
+    conversation_id: Optional[str] = Form(None)
+):
+    """
+    Транскрипция аудио файла в текст (v1 API)
+    
+    Алиас для /audio/transcriptions для совместимости с OpenAI API
+    """
+    return await create_audio_transcription(file, agent_type, conversation_id)
 
 
 if __name__ == "__main__":

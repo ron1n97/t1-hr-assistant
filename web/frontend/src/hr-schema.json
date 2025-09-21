@@ -1,0 +1,239 @@
+{
+  "hrSystemSchema": {
+    "candidate": {
+      "id": "string - уникальный идентификатор кандидата",
+      "personalInfo": {
+        "name": "string - полное имя кандидата",
+        "age": "number - возраст",
+        "location": "string - город проживания",
+        "phone": "string - номер телефона",
+        "email": "string - email адрес",
+        "telegram": "string - Telegram handle",
+        "avatar": "string - URL фото профиля"
+      },
+      "professionalInfo": {
+        "currentPosition": "string - текущая должность",
+        "desiredPosition": "string - желаемая должность",
+        "salaryExpectation": "string - ожидаемая зарплата",
+        "skills": "array of strings - профессиональные навыки",
+        "experience": [
+          {
+            "company": "string - название компании",
+            "position": "string - должность",
+            "period": "string - период работы",
+            "description": "string - описание обязанностей",
+            "current": "boolean - текущее место работы"
+          }
+        ],
+        "education": {
+          "institution": "string - учебное заведение",
+          "degree": "string - степень образования",
+          "specialization": "string - специализация",
+          "graduationYear": "string - год окончания"
+        }
+      },
+      "recruitmentInfo": {
+        "status": "string - статус в процессе найма (new/in-progress/interview/offer/hired/rejected)",
+        "source": "string - источник кандидата",
+        "assignedHR": "string - ответственный HR",
+        "createdAt": "string - дата создания профиля",
+        "lastActivity": "string - последняя активность",
+        "tags": "array of strings - теги для категоризации",
+        "rating": "number - оценка кандидата (1-5)",
+        "notes": "string - заметки HR"
+      }
+    },
+    "interview": {
+      "id": "string - уникальный идентификатор собеседования",
+      "candidateId": "string - ID кандидата",
+      "candidateName": "string - имя кандидата",
+      "position": "string - должность",
+      "type": "string - тип собеседования (technical/hr/final)",
+      "format": "string - формат (online/offline/phone)",
+      "scheduledDate": "string - дата и время (ISO 8601)",
+      "duration": "number - длительность в минутах",
+      "status": "string - статус (scheduled/completed/cancelled/rescheduled)",
+      "interviewer": "string - интервьюер",
+      "location": "string - место проведения (для offline)",
+      "meetingLink": "string - ссылка на онлайн встречу",
+      "notes": "string - заметки к собеседованию",
+      "feedback": {
+        "technicalSkills": "number - оценка технических навыков (1-5)",
+        "softSkills": "number - оценка soft skills (1-5)",
+        "culturalFit": "number - культурное соответствие (1-5)",
+        "overallRating": "number - общая оценка (1-5)",
+        "comments": "string - комментарии интервьюера",
+        "recommendation": "string - рекомендация (hire/no-hire/consider)",
+        "nextSteps": "string - следующие шаги"
+      }
+    },
+    "vacancy": {
+      "id": "string - уникальный идентификатор вакансии",
+      "title": "string - название вакансии",
+      "department": "string - отдел",
+      "level": "string - уровень позиции (junior/middle/senior/lead)",
+      "salaryRange": {
+        "min": "number - минимальная зарплата",
+        "max": "number - максимальная зарплата",
+        "currency": "string - валюта"
+      },
+      "requirements": {
+        "skills": "array of strings - требуемые навыки",
+        "experience": "string - требуемый опыт",
+        "education": "string - требования к образованию",
+        "languages": "array of objects - языковые требования"
+      },
+      "responsibilities": "array of strings - обязанности",
+      "benefits": "array of strings - льготы и преимущества",
+      "status": "string - статус вакансии (open/paused/closed)",
+      "priority": "string - приоритет (high/medium/low)",
+      "createdBy": "string - создатель вакансии",
+      "assignedHR": "string - ответственный HR",
+      "createdAt": "string - дата создания",
+      "deadline": "string - дедлайн для закрытия"
+    },
+    "hrUser": {
+      "id": "string - уникальный идентификатор HR",
+      "name": "string - имя HR специалиста",
+      "email": "string - email",
+      "role": "string - роль (hr_manager/hr_specialist/recruiter)",
+      "department": "string - отдел",
+      "specializations": "array of strings - специализации по найму",
+      "statistics": {
+        "activeCandidates": "number - количество активных кандидатов",
+        "monthlyInterviews": "number - собеседований в месяц",
+        "monthlyHires": "number - найм в месяц",
+        "averageHireCycle": "number - средний цикл найма в днях",
+        "successRate": "number - процент успешности"
+      }
+    }
+  },
+  "exampleData": {
+    "candidates": [
+      {
+        "id": "1",
+        "personalInfo": {
+          "name": "Матвеев Георг Петрович",
+          "age": 29,
+          "location": "Москва",
+          "phone": "+7 (962) 123-22-45",
+          "email": "georgentrevkh@gmail.ru",
+          "telegram": "@georgentrevkh"
+        },
+        "professionalInfo": {
+          "currentPosition": "Senior Front-end Developer",
+          "desiredPosition": "Senior Front-end Developer",
+          "salaryExpectation": "200 000 ₽",
+          "skills": ["JavaScript", "TypeScript", "React", "Angular", "Vue.js", "HTML/CSS"],
+          "experience": [
+            {
+              "company": "Яндекс",
+              "position": "Senior Front-end Developer",
+              "period": "Февраль 2017 — по настоящее время",
+              "description": "Управление разработкой клиентской части iModule 5+1 и мобильного приложения (React Native)",
+              "current": true
+            }
+          ],
+          "education": {
+            "institution": "МГУ им. М.В. Ломоносова",
+            "degree": "Магистр",
+            "specialization": "Прикладная математика и информатика",
+            "graduationYear": "2018"
+          }
+        },
+        "recruitmentInfo": {
+          "status": "interview",
+          "source": "HeadHunter",
+          "assignedHR": "Алексей Петров",
+          "createdAt": "2025-01-15",
+          "lastActivity": "2025-01-20",
+          "tags": ["frontend", "senior", "javascript"],
+          "rating": 4,
+          "notes": "Сильный кандидат, хорошие технические навыки"
+        }
+      }
+    ],
+    "interviews": [
+      {
+        "id": "1",
+        "candidateId": "1",
+        "candidateName": "Матвеев Георг Петрович",
+        "position": "Senior Front-end Developer",
+        "type": "technical",
+        "format": "online",
+        "scheduledDate": "2025-01-21T10:00:00Z",
+        "duration": 60,
+        "status": "scheduled",
+        "interviewer": "Алексей Петров",
+        "meetingLink": "https://meet.google.com/abc-def-ghi",
+        "notes": "Техническое интервью по JavaScript и React",
+        "feedback": {
+          "technicalSkills": 4,
+          "softSkills": 4,
+          "culturalFit": 5,
+          "overallRating": 4,
+          "comments": "Отличные технические знания, хорошие коммуникативные навыки",
+          "recommendation": "hire",
+          "nextSteps": "Пригласить на финальное собеседование"
+        }
+      }
+    ],
+    "vacancies": [
+      {
+        "id": "1",
+        "title": "Senior Front-end Developer",
+        "department": "IT",
+        "level": "senior",
+        "salaryRange": {
+          "min": 180000,
+          "max": 250000,
+          "currency": "RUB"
+        },
+        "requirements": {
+          "skills": ["JavaScript", "TypeScript", "React", "Vue.js", "HTML/CSS"],
+          "experience": "5+ лет коммерческого опыта",
+          "education": "Высшее техническое",
+          "languages": [
+            {
+              "language": "Английский",
+              "level": "Intermediate"
+            }
+          ]
+        },
+        "responsibilities": [
+          "Разработка пользовательских интерфейсов",
+          "Код-ревью и менторство",
+          "Участие в архитектурных решениях"
+        ],
+        "benefits": [
+          "ДМС",
+          "Удаленная работа",
+          "Обучение и конференции"
+        ],
+        "status": "open",
+        "priority": "high",
+        "createdBy": "Мария Иванова",
+        "assignedHR": "Алексей Петров",
+        "createdAt": "2025-01-10",
+        "deadline": "2025-02-28"
+      }
+    ],
+    "hrUsers": [
+      {
+        "id": "1",
+        "name": "Алексей Петров",
+        "email": "a.petrov@company.com",
+        "role": "hr_manager",
+        "department": "HR",
+        "specializations": ["IT", "Engineering", "Product"],
+        "statistics": {
+          "activeCandidates": 127,
+          "monthlyInterviews": 24,
+          "monthlyHires": 12,
+          "averageHireCycle": 18,
+          "successRate": 67
+        }
+      }
+    ]
+  }
+}

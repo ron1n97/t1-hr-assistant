@@ -22,49 +22,53 @@ t1-hr-assistant/
 ├── test_llm.py           # Тест агентов
 ├── test_api.py           # Тест API
 ├── run_server.py         # Скрипт запуска сервера
+├── Dockerfile            # Docker образ
+├── docker-compose.yml    # Docker Compose конфигурация
+├── docker-scripts.sh     # Скрипты управления Docker
+├── .dockerignore         # Исключения для Docker
 ├── API_USAGE.md          # Документация API
+├── DOCKER_GUIDE.md       # Руководство по Docker
 └── pyproject.toml        # Зависимости
 ```
 
 ## Быстрый старт
 
-### 1. Установка зависимостей
+### 🐳 Запуск через Docker (рекомендуется)
 
 ```bash
-# Установка uv (если не установлен)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# 1. Создайте .env файл
+echo "SCIBOX_API_KEY=your_api_key_here" > .env
 
-# Установка зависимостей проекта
-uv sync
-```
+# 2. Запустите через Docker Compose
+chmod +x docker-scripts.sh
+./docker-scripts.sh build
 
-### 2. Настройка окружения
-
-Создайте файл `.env`:
-```env
-SCIBOX_API_KEY=your_api_key_here
-```
-
-### 3. Запуск сервера
-
-```bash
-# Через uvicorn
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-# Или через скрипт
-python run_server.py
+# 3. Проверьте работу
+./docker-scripts.sh test
 ```
 
 Сервер будет доступен по адресу: http://localhost:8000
 
-### 4. Тестирование
+### 🐍 Локальная разработка
 
 ```bash
-# Тест агентов напрямую
-python test_llm.py
+# 1. Установка uv (если не установлен)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Тест API
-python test_api.py
+# 2. Установка зависимостей проекта
+uv sync
+
+# 3. Настройка окружения
+echo "SCIBOX_API_KEY=your_api_key_here" > .env
+
+# 4. Запуск сервера
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+# или
+python run_server.py
+
+# 5. Тестирование
+python test_llm.py  # Тест агентов напрямую
+python test_api.py  # Тест API
 ```
 
 ## API Документация
@@ -113,6 +117,32 @@ print(hr_response)
 user_response = UserRequestServer.process_user_request("Помоги с настройкой почты")
 print(user_response)
 ```
+
+## 🐳 Docker
+
+### Управление контейнерами
+
+```bash
+# Сборка и запуск (с uv)
+./docker-scripts.sh build
+
+# Сборка и запуск (с pip, если проблемы с uv)
+./docker-scripts.sh build pip
+
+# Остановка
+./docker-scripts.sh stop
+
+# Просмотр логов
+./docker-scripts.sh logs
+
+# Тестирование
+./docker-scripts.sh test
+
+# Очистка
+./docker-scripts.sh clean
+```
+
+Подробное руководство по Docker: [DOCKER_GUIDE.md](DOCKER_GUIDE.md)
 
 ## Разработка
 

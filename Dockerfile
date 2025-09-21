@@ -3,13 +3,14 @@ FROM python:3.12-slim
 
 # Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
-    curl \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.cargo/bin:$PATH"
+# Устанавливаем uv через pip
+RUN pip install uv
+
+# Проверяем установку uv
+RUN uv --version
 
 # Создаем рабочую директорию
 WORKDIR /app
@@ -18,7 +19,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 
 # Устанавливаем зависимости через uv
-RUN uv sync --frozen
+RUN uv sync
 
 # Копируем исходный код
 COPY . .

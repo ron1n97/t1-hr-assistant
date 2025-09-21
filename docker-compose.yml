@@ -4,7 +4,7 @@ services:
   t1-hr-assistant:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ${DOCKERFILE:-Dockerfile}
     container_name: t1-hr-assistant
     ports:
       - "8000:8000"
@@ -26,6 +26,30 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - t1-hr-network
+
+  t1-hr-frontend:
+    build:
+      context: ./web/frontend
+      dockerfile: Dockerfile
+    container_name: t1-hr-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # Монтируем только исходный код для hot reload
+      - ./web/frontend/src:/app/src
+      - ./web/frontend/public:/app/public
+      - ./web/frontend/index.html:/app/index.html
+      - ./web/frontend/vite.config.ts:/app/vite.config.ts
+      - ./web/frontend/tsconfig.json:/app/tsconfig.json
+      - ./web/frontend/tailwind.config.js:/app/tailwind.config.js
+      - ./web/frontend/postcss.config.js:/app/postcss.config.js
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - t1-hr-assistant
+    restart: unless-stopped
     networks:
       - t1-hr-network
 

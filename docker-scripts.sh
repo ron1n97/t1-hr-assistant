@@ -44,7 +44,14 @@ build_and_run() {
     log "Сборка и запуск T1 HR Assistant..."
     check_env
     
-    docker-compose up --build -d
+    # Проверяем, какой Dockerfile использовать
+    if [ "$2" = "pip" ]; then
+        log "Используется Dockerfile с pip"
+        DOCKERFILE=Dockerfile.pip docker-compose up --build -d
+    else
+        log "Используется Dockerfile с uv"
+        docker-compose up --build -d
+    fi
     
     success "Сервис запущен!"
     log "API доступен по адресу: http://localhost:8000"
@@ -165,9 +172,10 @@ help() {
     echo "  help      - Показать эту справку"
     echo ""
     echo "Примеры:"
-    echo "  $0 build    # Первый запуск"
-    echo "  $0 logs     # Просмотр логов"
-    echo "  $0 test     # Тестирование"
+    echo "  $0 build       # Первый запуск с uv"
+    echo "  $0 build pip   # Первый запуск с pip"
+    echo "  $0 logs        # Просмотр логов"
+    echo "  $0 test        # Тестирование"
 }
 
 # Основная логика
