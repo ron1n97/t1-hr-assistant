@@ -512,13 +512,82 @@ class UserRequestServer:
 Ответ должен быть структурированным, полезным и персонализированным. Используй эмодзи для лучшего восприятия.
 """
         
-        try:
-            # Получаем ответ от LLM
-            response = self.llm.invoke(prompt)
-            return response.content
-        except Exception as e:
-            logger.error(f"Ошибка при обработке запроса через LLM: {e}")
-            return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте позже."
+        # Пытаемся получить ответ от LLM с retry логикой
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.llm.invoke(prompt)
+                return response.content
+            except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "Too Many Requests" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # Экспоненциальная задержка: 1, 2, 4 секунды
+                        logger.warning(f"LLM сервер перегружен, попытка {attempt + 1}/{max_retries}, ждем {wait_time}с")
+                        import time
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.warning("LLM сервер перегружен после всех попыток, возвращаем базовый ответ")
+                        return self._get_fallback_response(message, profile)
+                else:
+                    logger.error(f"Ошибка при обработке запроса через LLM: {e}")
+                    return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте позже."
+    
+    def _get_fallback_response(self, message: str, profile) -> str:
+        """Fallback ответ когда LLM недоступен"""
+        message_lower = message.lower()
+        
+        # Базовые ответы на основе ключевых слов
+        if any(word in message_lower for word in ["материалы", "курсы", "учебные", "обучение", "изучение"]):
+            return f"""
+📚 **Учебные материалы для {profile.currentRole.specialization}**
+
+На основе вашего профиля ({profile.basicInfo.position}, {profile.basicInfo.grade}) рекомендую:
+
+🎯 **Для развития:**
+- Изучение новых технологий в области {profile.currentRole.specialization}
+- Практические проекты и кейсы
+- Участие в профессиональных сообществах
+
+💡 **Следующие шаги:**
+- Определите конкретные навыки для развития
+- Найдите ментора в вашей области
+- Планируйте карьерный рост
+
+*Примечание: LLM временно недоступен, но я могу помочь с базовыми рекомендациями!*
+"""
+        elif any(word in message_lower for word in ["рекомендации", "карьер", "развитие", "продвижение"]):
+            return f"""
+💼 **Карьерные рекомендации для {profile.basicInfo.position}**
+
+Ваш профиль: {profile.basicInfo.department}, {profile.basicInfo.grade}, опыт {profile.basicInfo.itExperience}
+
+🎯 **Рекомендации:**
+- Развивайте навыки в области {profile.currentRole.specialization}
+- Изучайте новые технологии и подходы
+- Участвуйте в проектах и инициативах компании
+
+📈 **Карьерный рост:**
+- Рассмотрите возможности повышения грейда
+- Изучите смежные области для расширения компетенций
+- Найдите ментора для профессионального развития
+
+*Примечание: LLM временно недоступен, но я могу помочь с базовыми рекомендациями!*
+"""
+        else:
+            return f"""
+👋 **Привет! Чем могу помочь?**
+
+Я вижу, что вы работаете как {profile.basicInfo.position} в {profile.basicInfo.department} (грейд {profile.basicInfo.grade}).
+
+Могу помочь с:
+- 📚 Поиском учебных материалов
+- 💼 Карьерными рекомендациями  
+- ❓ Ответами на вопросы
+
+*Примечание: LLM временно недоступен, но я могу помочь с базовыми рекомендациями!*
+"""
     
     def _handle_profile_setup(self, message: str, user_id: str) -> str:
         """Обработка запроса без профиля - заполнение профиля"""
@@ -625,12 +694,12 @@ class UserRequestServer:
             logger.error(f"Ошибка при поиске материалов через LLM: {e}")
             # Fallback на простой список
             response = f"Найдено {len(materials)} материалов по запросу '{query}':\n\n"
-            for i, material in enumerate(materials[:5], 1):
-                response += f"{i}. **{material.title}**\n"
-                response += f"   📝 {material.description}\n"
-                response += f"   🏷️ {material.category} | ⭐ {material.rating} | ⏱️ {material.duration}\n"
-                response += f"   📊 Уровень: {material.level.value} | Тип: {material.type.value}\n\n"
-            return response
+        for i, material in enumerate(materials[:5], 1):
+            response += f"{i}. **{material.title}**\n"
+            response += f"   📝 {material.description}\n"
+            response += f"   🏷️ {material.category} | ⭐ {material.rating} | ⏱️ {material.duration}\n"
+            response += f"   📊 Уровень: {material.level.value} | Тип: {material.type.value}\n\n"
+        return response
     
     def _handle_recommendations_simple(self) -> str:
         """Персональные рекомендации на основе профиля через LLM"""
@@ -731,10 +800,10 @@ class UserRequestServer:
         else:
             # Профиль не существует
             return (f"Я понимаю ваш вопрос. Профиль пользователя не заполнен.\n\n"
-                   "Вы можете:\n"
-                   "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
+               "Вы можете:\n"
+               "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
                    "• Получить общие рекомендации ('посоветуй что изучить')\n"
-                   "• Заполнить профиль для персонализированных ответов")
+               "• Заполнить профиль для персонализированных ответов")
     
     def _extract_profile_info(self, message: str) -> dict:
         """Извлекает информацию профиля из сообщения"""
