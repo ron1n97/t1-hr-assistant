@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Устанавливаем Python зависимости
+RUN pip install --no-cache-dir \
+    openai-whisper \
+    fastapi \
+    uvicorn \
+    python-multipart
+
+# Копируем скрипт сервера
+COPY whisper_server.py /app/whisper_server.py
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Открываем порт
+EXPOSE 8001
+
+# Запускаем сервер
+CMD ["python", "whisper_server.py"]

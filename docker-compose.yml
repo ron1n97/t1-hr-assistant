@@ -8,7 +8,7 @@ services:
       - "8000:8000"
     environment:
       - SCIBOX_API_KEY=${SCIBOX_API_KEY}
-      - WILLOW_SERVER_URL=${WILLOW_SERVER_URL:-http://whisper-server:8001}
+      - WILLOW_SERVER_URL=${WILLOW_SERVER_URL:-http://localhost:8001}
       - WILLOW_API_KEY=${WILLOW_API_KEY:-}
       - PYTHONPATH=/app
       - UV_SYSTEM_PYTHON=1
@@ -20,9 +20,9 @@ services:
       - .:/app:${MOUNT_CODE:-ro}
       # Кэш uv для ускорения сборки
       - uv-cache:/root/.cache/uv
-    depends_on:
-      whisper-server:
-        condition: service_healthy
+    # depends_on:
+    #   whisper-server:
+    #     condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -57,32 +57,7 @@ services:
     networks:
       - t1-hr-network
 
-  whisper-server:
-    image: ghcr.io/openai/whisper:latest
-    container_name: whisper-server
-    ports:
-      - "${WILLOW_PORT:-8001}:8001"
-    environment:
-      - WHISPER_MODEL=${WILLOW_WHISPER_MODEL:-large-v3}
-    volumes:
-      # Кэш моделей для ускорения повторных запусков
-      - whisper-models:/root/.cache/whisper
-      # Монтируем скрипт сервера
-      - ./whisper_server.py:/app/whisper_server.py
-    command: >
-      sh -c "
-        pip install fastapi uvicorn python-multipart &&
-        python /app/whisper_server.py
-      "
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    networks:
-      - t1-hr-network
+  # whisper-server убран - используется внешний сервер
 
   # Опциональный сервис для мониторинга (можно раскомментировать при необходимости)
   # nginx:
@@ -100,8 +75,6 @@ services:
 
 volumes:
   uv-cache:
-    driver: local
-  whisper-models:
     driver: local
 
 networks:

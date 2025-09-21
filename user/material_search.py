@@ -27,12 +27,20 @@ class MaterialSearchEngine:
         query_lower = query.lower()
         results = []
         
+        # Извлекаем ключевые слова из запроса
+        keywords = self._extract_keywords(query_lower)
+        
         for material in self.materials:
-            # Поиск по названию, описанию и категории
-            if (query_lower in material.title.lower() or
-                query_lower in material.description.lower() or
-                query_lower in material.category.lower()):
+            # Поиск по ключевым словам в названии, описании и категории
+            material_text = f"{material.title} {material.description} {material.category}".lower()
+            
+            # Проверяем совпадение хотя бы одного ключевого слова
+            if any(keyword in material_text for keyword in keywords):
                 results.append(material)
+        
+        # Если ничего не найдено, возвращаем все материалы
+        if not results:
+            results = self.materials
         
         # Применяем фильтры
         if filters:
@@ -43,6 +51,33 @@ class MaterialSearchEngine:
         
         logger.info(f"Найдено {len(results)} материалов")
         return results
+    
+    def _extract_keywords(self, query: str) -> List[str]:
+        """Извлекает ключевые слова из запроса"""
+        # Убираем стоп-слова
+        stop_words = {
+            "посоветуй", "учебные", "курсы", "которые", "мне", "стоит", "освоить",
+            "найди", "покажи", "ищу", "материалы", "что", "изучить", "для"
+        }
+        
+        # Разбиваем на слова и фильтруем
+        words = query.split()
+        keywords = [word for word in words if word not in stop_words and len(word) > 2]
+        
+        # Добавляем общие IT термины, если они есть в запросе
+        it_terms = {
+            "фронтенд": ["react", "vue", "angular", "javascript", "typescript", "html", "css"],
+            "бэкенд": ["python", "java", "node", "api", "база", "данных"],
+            "анализ": ["системный", "бизнес", "анализ", "требования", "uml"],
+            "тестирование": ["тест", "qa", "автоматизация", "cypress", "jest"],
+            "devops": ["docker", "kubernetes", "ci", "cd", "deployment"]
+        }
+        
+        for category, terms in it_terms.items():
+            if any(term in query for term in terms):
+                keywords.extend(terms)
+        
+        return keywords
     
     def get_recommendations(self, user_id: str = "default", limit: int = 5) -> List[Material]:
         """Получает персональные рекомендации на основе профиля пользователя"""

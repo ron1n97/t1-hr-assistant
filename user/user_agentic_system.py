@@ -125,9 +125,8 @@ class UserRequestServer:
             
         elif not profile.is_complete():
             # Профиль существует, но не заполнен полностью
-            # Всегда переходим в normal_chat, даже если профиль частично заполнен
             state["profile_checked"] = True
-            state["profile_complete"] = True
+            state["profile_complete"] = False
             state["current_mode"] = "normal_chat"
             logger.info("Профиль частично заполнен, переходим к обычному режиму")
             
@@ -450,8 +449,80 @@ class UserRequestServer:
         return profile_info.strip()
     
     def _simple_query_processing(self, message: str, user_id: str) -> str:
-        """Простая обработка запросов"""
-        logger.info("Простая обработка запросов")
+        """Обработка запросов с учетом наличия профиля"""
+        logger.info("Обработка запросов")
+        
+        profile = load_user_profile()
+        
+        if profile:
+            # Профиль существует - используем LLM с контекстом профиля и материалов
+            logger.info("Профиль существует, используем LLM с контекстом")
+            return self._handle_query_with_profile(message, profile)
+        else:
+            # Профиль не существует - используем старую логику заполнения профиля
+            logger.info("Профиль не существует, используем заполнение профиля")
+            return self._handle_profile_setup(message, user_id)
+    
+    def _handle_query_with_profile(self, message: str, profile) -> str:
+        """Обработка запроса с существующим профилем через LLM"""
+        from .material_search import MaterialSearchEngine
+        
+        # Получаем учебные материалы
+        search_engine = MaterialSearchEngine(self.llm)
+        materials = search_engine.materials
+        
+        # Формируем контекст профиля
+        profile_context = f"""
+Профиль пользователя:
+- Подразделение: {profile.basicInfo.department}
+- Должность: {profile.basicInfo.position}
+- Грейд: {profile.basicInfo.grade}
+- Опыт в IT: {profile.basicInfo.itExperience}
+- Специализация: {profile.currentRole.specialization}
+- Функциональная роль: {profile.currentRole.functionalRole}
+- Заполнение профиля: {profile.get_completion_percentage():.1f}%
+"""
+        
+        # Формируем информацию о доступных материалах
+        materials_info = ""
+        for i, material in enumerate(materials, 1):
+            materials_info += f"{i}. {material.title} - {material.description} (Категория: {material.category}, Уровень: {material.level.value}, Рейтинг: {material.rating})\n"
+        
+        # Создаем промпт для LLM
+        prompt = f"""
+Ты - персональный HR-консультант и карьерный наставник. У тебя есть информация о пользователе и доступные учебные материалы.
+
+{profile_context}
+
+Доступные учебные материалы:
+{materials_info}
+
+Запрос пользователя: "{message}"
+
+Ответь на запрос пользователя, учитывая:
+1. Его профиль и текущую позицию
+2. Доступные учебные материалы
+3. Рекомендации по развитию карьеры
+4. Конкретные шаги для роста
+
+Если пользователь спрашивает о материалах - рекомендуй подходящие из списка выше.
+Если спрашивает о карьере - дай персональные советы на основе его профиля.
+Если общий вопрос - отвечай с учетом его специализации и опыта.
+
+Ответ должен быть структурированным, полезным и персонализированным. Используй эмодзи для лучшего восприятия.
+"""
+        
+        try:
+            # Получаем ответ от LLM
+            response = self.llm.invoke(prompt)
+            return response.content
+        except Exception as e:
+            logger.error(f"Ошибка при обработке запроса через LLM: {e}")
+            return "Извините, произошла ошибка при обработке вашего запроса. Попробуйте позже."
+    
+    def _handle_profile_setup(self, message: str, user_id: str) -> str:
+        """Обработка запроса без профиля - заполнение профиля"""
+        logger.info("Заполнение профиля")
         
         # Сначала пытаемся обновить профиль из сообщения
         profile = load_user_profile()
@@ -461,22 +532,22 @@ class UserRequestServer:
                 # Обновляем профиль
                 updated_fields = []
                 if "department" in extracted_info:
-                    profile.basicInfo["department"] = extracted_info["department"]
+                    profile.basicInfo.department = extracted_info["department"]
                     updated_fields.append(f"подразделение: {extracted_info['department']}")
                 if "position" in extracted_info:
-                    profile.basicInfo["position"] = extracted_info["position"]
+                    profile.basicInfo.position = extracted_info["position"]
                     updated_fields.append(f"должность: {extracted_info['position']}")
                 if "grade" in extracted_info:
-                    profile.basicInfo["grade"] = extracted_info["grade"]
+                    profile.basicInfo.grade = extracted_info["grade"]
                     updated_fields.append(f"грейд: {extracted_info['grade']}")
                 if "experience" in extracted_info:
-                    profile.basicInfo["itExperience"] = extracted_info["experience"]
+                    profile.basicInfo.itExperience = extracted_info["experience"]
                     updated_fields.append(f"опыт: {extracted_info['experience']}")
                 if "specialization" in extracted_info:
-                    profile.currentRole["specialization"] = extracted_info["specialization"]
+                    profile.currentRole.specialization = extracted_info["specialization"]
                     updated_fields.append(f"специализация: {extracted_info['specialization']}")
                 if "functional_role" in extracted_info:
-                    profile.currentRole["functionalRole"] = extracted_info["functional_role"]
+                    profile.currentRole.functionalRole = extracted_info["functional_role"]
                     updated_fields.append(f"функциональная роль: {extracted_info['functional_role']}")
                 
                 if updated_fields:
@@ -486,20 +557,21 @@ class UserRequestServer:
         message_lower = message.lower()
         
         # Проверяем тип запроса
-        if any(word in message_lower for word in ["найди", "поиск", "ищу", "покажи", "материалы", "курсы", "какие"]):
+        if any(word in message_lower for word in ["найди", "поиск", "ищу", "покажи", "материалы", "курсы", "какие", "учебные", "обучение", "изучение", "посоветуй курсы", "посоветуй учебные"]):
             return self._handle_material_search_simple(message)
-        elif any(word in message_lower for word in ["рекомендуй", "посоветуй", "что изучить"]):
+        elif any(word in message_lower for word in ["рекомендуй", "посоветуй", "что изучить", "рекомендация", "рекомендации", "карьер", "карьерные", "развитие", "продвижение"]):
             return self._handle_recommendations_simple()
         else:
             return self._handle_general_question_simple(message)
     
     def _handle_material_search_simple(self, query: str) -> str:
-        """Простой поиск материалов"""
+        """Поиск материалов через LLM с учетом профиля"""
         from .material_search import MaterialSearchEngine
         
         search_engine = MaterialSearchEngine(self.llm)
+        profile = load_user_profile()
         
-        # Если запрос общий (типа "какие материалы доступны"), показываем все
+        # Получаем материалы
         query_lower = query.lower()
         if any(word in query_lower for word in ["какие", "доступны", "есть", "покажи все", "список"]):
             materials = search_engine.materials
@@ -509,59 +581,160 @@ class UserRequestServer:
         if not materials:
             return "К сожалению, по вашему запросу ничего не найдено. Попробуйте изменить поисковые термины."
         
-        response = f"Найдено {len(materials)} материалов по запросу '{query}':\n\n"
+        # Формируем контекст для LLM
+        materials_info = ""
+        for i, material in enumerate(materials[:10], 1):  # Берем до 10 материалов
+            materials_info += f"{i}. {material.title} - {material.description} (Категория: {material.category}, Уровень: {material.level.value})\n"
         
-        for i, material in enumerate(materials[:5], 1):
-            response += f"{i}. **{material.title}**\n"
-            response += f"   📝 {material.description}\n"
-            response += f"   🏷️ {material.category} | ⭐ {material.rating} | ⏱️ {material.duration}\n"
-            response += f"   📊 Уровень: {material.level.value} | Тип: {material.type.value}\n\n"
+        profile_context = ""
+        if profile:
+            profile_context = f"""
+Профиль пользователя:
+- Должность: {profile.basicInfo.position}
+- Специализация: {profile.currentRole.specialization}
+- Опыт в IT: {profile.basicInfo.itExperience}
+- Грейд: {profile.basicInfo.grade}
+"""
         
-        if len(materials) > 5:
-            response += f"... и еще {len(materials) - 5} материалов."
+        # Создаем промпт для LLM
+        prompt = f"""
+Ты - эксперт по обучению и развитию в IT. Пользователь ищет учебные материалы.
+
+Запрос пользователя: "{query}"
+
+{profile_context}
+
+Доступные материалы:
+{materials_info}
+
+Проанализируй запрос пользователя и его профиль, затем:
+1. Выбери наиболее подходящие материалы (до 5-7 штук)
+2. Объясни, почему именно эти материалы подходят
+3. Дай краткое описание каждого материала
+4. Предложи план изучения
+5. Укажи, какие навыки можно развить
+
+Ответ должен быть структурированным и полезным. Используй эмодзи.
+"""
         
-        return response
+        try:
+            # Получаем ответ от LLM
+            response = self.llm.invoke(prompt)
+            return f"📚 **Рекомендации по учебным материалам:**\n\n{response.content}"
+        except Exception as e:
+            logger.error(f"Ошибка при поиске материалов через LLM: {e}")
+            # Fallback на простой список
+            response = f"Найдено {len(materials)} материалов по запросу '{query}':\n\n"
+            for i, material in enumerate(materials[:5], 1):
+                response += f"{i}. **{material.title}**\n"
+                response += f"   📝 {material.description}\n"
+                response += f"   🏷️ {material.category} | ⭐ {material.rating} | ⏱️ {material.duration}\n"
+                response += f"   📊 Уровень: {material.level.value} | Тип: {material.type.value}\n\n"
+            return response
     
     def _handle_recommendations_simple(self) -> str:
-        """Простые рекомендации"""
-        from .material_search import MaterialSearchEngine
+        """Персональные рекомендации на основе профиля через LLM"""
+        profile = load_user_profile()
         
-        search_engine = MaterialSearchEngine(self.llm)
-        recommendations = search_engine.get_recommendations("default", limit=5)
+        if not profile:
+            return "Профиль не заполнен. Заполните профиль для получения персональных рекомендаций."
         
-        if not recommendations:
-            return "Не удалось сформировать персональные рекомендации. Заполните профиль для получения более точных рекомендаций."
+        # Формируем контекст профиля для LLM
+        profile_context = f"""
+Профиль пользователя:
+- Подразделение: {profile.basicInfo.department}
+- Должность: {profile.basicInfo.position}
+- Грейд: {profile.basicInfo.grade}
+- Опыт в IT: {profile.basicInfo.itExperience}
+- Специализация: {profile.currentRole.specialization}
+- Функциональная роль: {profile.currentRole.functionalRole}
+- Заполнение профиля: {profile.get_completion_percentage():.1f}%
+"""
         
-        response = "🎯 **Персональные рекомендации для вас:**\n\n"
+        # Создаем промпт для LLM
+        prompt = f"""
+Ты - HR-консультант и карьерный наставник. На основе профиля пользователя дай персональные рекомендации по развитию карьеры.
+
+{profile_context}
+
+Дай конкретные рекомендации по:
+1. Навыкам для развития
+2. Направлениям карьерного роста
+3. Конкретным шагам для продвижения
+4. Областям для изучения
+
+Ответ должен быть структурированным, конкретным и полезным. Используй эмодзи для лучшего восприятия.
+"""
         
-        for i, material in enumerate(recommendations, 1):
-            response += f"{i}. **{material.title}**\n"
-            response += f"   📝 {material.description}\n"
-            response += f"   🏷️ {material.category} | ⭐ {material.rating} | ⏱️ {material.duration}\n"
-            response += f"   📊 Уровень: {material.level.value} | Тип: {material.type.value}\n\n"
-        
-        return response
+        try:
+            # Получаем ответ от LLM
+            response = self.llm.invoke(prompt)
+            return f"🎯 **Персональные рекомендации по карьере:**\n\n{response.content}"
+        except Exception as e:
+            logger.error(f"Ошибка при получении рекомендаций от LLM: {e}")
+            return "Извините, не удалось получить персональные рекомендации. Попробуйте позже."
     
     def _handle_general_question_simple(self, message: str) -> str:
         """Простая обработка общих вопросов"""
         profile = load_user_profile()
         
-        if profile:
+        if profile and profile.is_complete():
+            # Профиль полностью заполнен
             profile_context = f"""
 Информация о пользователе:
+- Подразделение: {profile.basicInfo.department}
 - Должность: {profile.basicInfo.position}
-- Специализация: {profile.currentRole.specialization}
+- Грейд: {profile.basicInfo.grade}
 - Опыт в IT: {profile.basicInfo.itExperience}
+- Специализация: {profile.currentRole.specialization}
+- Функциональная роль: {profile.currentRole.functionalRole}
 """
+            return (f"Я понимаю ваш вопрос. {profile_context}\n\n"
+                   "Вы можете:\n"
+                   "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
+                   "• Получить персональные рекомендации ('посоветуй что изучить')\n"
+                   "• Обновить информацию в профиле")
+                   
+        elif profile and not profile.is_complete():
+            # Профиль частично заполнен
+            completion = profile.get_completion_percentage()
+            filled_fields = []
+            if profile.basicInfo.department.strip():
+                filled_fields.append(f"подразделение: {profile.basicInfo.department}")
+            if profile.basicInfo.position.strip():
+                filled_fields.append(f"должность: {profile.basicInfo.position}")
+            if profile.basicInfo.grade.strip():
+                filled_fields.append(f"грейд: {profile.basicInfo.grade}")
+            if profile.basicInfo.itExperience.strip():
+                filled_fields.append(f"опыт: {profile.basicInfo.itExperience}")
+            if profile.currentRole.specialization.strip():
+                filled_fields.append(f"специализация: {profile.currentRole.specialization}")
+            if profile.currentRole.functionalRole.strip():
+                filled_fields.append(f"функциональная роль: {profile.currentRole.functionalRole}")
+            
+            profile_info = f"Заполнено: {', '.join(filled_fields)}" if filled_fields else "Профиль пуст"
+            
+            # Проверяем, не запрашивает ли пользователь рекомендации по карьере
+            message_lower = message.lower()
+            if any(word in message_lower for word in ["карьер", "развитие", "продвижение", "рекомендация", "совет"]):
+                return (f"Я понимаю, что вы интересуетесь развитием карьеры! Ваш профиль заполнен на {completion:.1f}%. {profile_info}\n\n"
+                       "Для получения персональных рекомендаций по карьере:\n"
+                       "• Скажите 'посоветуй что изучить' для получения рекомендаций\n"
+                       "• Или 'найди курсы по [теме]' для поиска конкретных материалов\n"
+                       "• Заполните недостающую информацию в профиле для более точных рекомендаций")
+            else:
+                return (f"Я понимаю ваш вопрос. Ваш профиль заполнен на {completion:.1f}%. {profile_info}\n\n"
+                       "Вы можете:\n"
+                       "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
+                       "• Получить базовые рекомендации ('посоветуй что изучить')\n"
+                       "• Заполнить недостающую информацию в профиле для более точных рекомендаций")
         else:
-            profile_context = "Профиль пользователя не заполнен."
-        
-        # Простой ответ с учетом профиля
-        return (f"Я понимаю ваш вопрос. {profile_context}\n\n"
-               "Вы можете:\n"
-               "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
-               "• Получить рекомендации ('посоветуй что изучить')\n"
-               "• Заполнить профиль для персонализированных ответов")
+            # Профиль не существует
+            return (f"Я понимаю ваш вопрос. Профиль пользователя не заполнен.\n\n"
+                   "Вы можете:\n"
+                   "• Найти учебные материалы (например: 'найди курсы по системному анализу')\n"
+                   "• Получить общие рекомендации ('посоветуй что изучить')\n"
+                   "• Заполнить профиль для персонализированных ответов")
     
     def _extract_profile_info(self, message: str) -> dict:
         """Извлекает информацию профиля из сообщения"""

@@ -199,7 +199,7 @@ const careerPath: CareerPosition[] = [
     company: 'T1',
     period: '2022-настоящее время',
     status: 'current',
-    description: 'Разработка сложных веб-систем и архитектуры',
+    description: 'Разработка сложных веб-систем и архитектуры. Топ-10% разработчиков компании.',
     xpGained: 800
   },
   {
@@ -226,6 +226,15 @@ const careerPath: CareerPosition[] = [
 const userAchievements: Achievement[] = [
   {
     id: '1',
+    title: 'Топ-10% Frontend разработчиков компании',
+    description: 'Входите в число лучших специалистов по фронтенд-разработке в T1',
+    type: 'achievement',
+    xpReward: 500,
+    date: '2024-01-15',
+    category: 'Экспертиза'
+  },
+  {
+    id: '2',
     title: 'Завершение проекта iModule 5+1',
     description: 'Успешная разработка и внедрение нового модуля',
     type: 'project',
@@ -234,7 +243,7 @@ const userAchievements: Achievement[] = [
     category: 'Разработка'
   },
   {
-    id: '2',
+    id: '3',
     title: 'Сертификация React Developer',
     description: 'Получение официального сертификата React',
     type: 'certification',
@@ -243,13 +252,22 @@ const userAchievements: Achievement[] = [
     category: 'Обучение'
   },
   {
-    id: '3',
+    id: '4',
     title: 'Менторство Junior разработчика',
     description: 'Помощь в развитии нового сотрудника',
     type: 'achievement',
     xpReward: 150,
     date: '2023-11-05',
     category: 'Лидерство'
+  },
+  {
+    id: '5',
+    title: 'Эксперт по TypeScript',
+    description: 'Признан экспертом по TypeScript в команде',
+    type: 'achievement',
+    xpReward: 250,
+    date: '2023-09-10',
+    category: 'Технологии'
   }
 ];
 
@@ -356,7 +374,7 @@ export function SkillTreePage() {
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Заголовок и статистика */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -399,6 +417,10 @@ export function SkillTreePage() {
           <CardContent>
             <div className="text-2xl font-bold">{achievements.length}</div>
             <div className="text-sm text-muted-foreground">достижений получено</div>
+            <div className="mt-2 p-2 bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg">
+              <div className="text-xs font-semibold text-purple-800">🏆 Топ-10% Frontend</div>
+              <div className="text-xs text-purple-600">Лучшие в компании</div>
+            </div>
             <Dialog open={showAddAchievement} onOpenChange={setShowAddAchievement}>
               <DialogTrigger asChild>
                 <Button size="sm" className="mt-2 w-full">
@@ -465,6 +487,23 @@ export function SkillTreePage() {
             </Dialog>
           </CardContent>
         </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-orange-500" />
+              Рейтинг
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">#47</div>
+            <div className="text-sm text-muted-foreground">из 500+ разработчиков</div>
+            <div className="mt-2 p-2 bg-orange-100 rounded-lg">
+              <div className="text-xs font-semibold text-orange-800">🎯 Топ-10% компании</div>
+              <div className="text-xs text-orange-600">Эксперт по Frontend</div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Карьерный путь */}
@@ -514,20 +553,47 @@ export function SkillTreePage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {achievements.slice(-6).reverse().map(achievement => (
-              <Card key={achievement.id} className="border-purple-200 bg-purple-50">
+              <Card 
+                key={achievement.id} 
+                className={`${
+                  achievement.title.includes('Топ-10%') 
+                    ? 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-orange-50 ring-2 ring-yellow-200' 
+                    : 'border-purple-200 bg-purple-50'
+                }`}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <Award className="w-4 h-4 text-purple-500" />
+                      {achievement.title.includes('Топ-10%') ? (
+                        <div className="flex items-center gap-1">
+                          <Award className="w-4 h-4 text-yellow-500" />
+                          <span className="text-xs">🏆</span>
+                        </div>
+                      ) : (
+                        <Award className="w-4 h-4 text-purple-500" />
+                      )}
                       <h4 className="text-sm font-medium">{achievement.title}</h4>
                     </div>
-                    <Badge className="text-xs bg-purple-100 text-purple-800">
+                    <Badge className={`text-xs ${
+                      achievement.title.includes('Топ-10%') 
+                        ? 'bg-yellow-100 text-yellow-800' 
+                        : 'bg-purple-100 text-purple-800'
+                    }`}>
                       +{achievement.xpReward} XP
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mb-2">{achievement.description}</p>
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-xs">{achievement.category}</Badge>
+                    <Badge 
+                      variant="outline" 
+                      className={`text-xs ${
+                        achievement.title.includes('Топ-10%') 
+                          ? 'border-yellow-300 text-yellow-700' 
+                          : ''
+                      }`}
+                    >
+                      {achievement.category}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">{achievement.date}</span>
                   </div>
                 </CardContent>
@@ -680,6 +746,44 @@ export function SkillTreePage() {
             </Card>
           )}
         </div>
+      </div>
+
+      {/* Дополнительная статистика */}
+      <div className="mt-8">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                  🎯 Ваш профессиональный статус
+                </h3>
+                <p className="text-sm text-blue-600 mb-4">
+                  Вы входите в топ-10% лучших Frontend разработчиков компании T1. 
+                  Ваш опыт и навыки признаны коллегами и руководством.
+                </p>
+                <div className="flex gap-4 text-sm">
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600">⭐</span>
+                    <span className="text-blue-700">Эксперт по React/TypeScript</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600">🚀</span>
+                    <span className="text-blue-700">Высокая производительность</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600">👥</span>
+                    <span className="text-blue-700">Ментор команды</span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-blue-800">#47</div>
+                <div className="text-sm text-blue-600">место в рейтинге</div>
+                <div className="text-xs text-blue-500 mt-1">из 500+ разработчиков</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
