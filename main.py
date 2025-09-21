@@ -1,5 +1,6 @@
 import time
 import logging
+import httpx
 from datetime import datetime
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
@@ -27,6 +28,7 @@ from models import (
 )
 from hr.hr_agentic_system import HRRequestServer
 from user.user_agentic_system import UserRequestServer
+from user.profile_api import router as profile_router
 from config import Settings
 
 # Настройка логирования
@@ -78,6 +80,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Подключение роутеров
+app.include_router(profile_router)
 
 
 # Обработчики ошибок
@@ -190,24 +195,32 @@ async def chat_with_agent(request: ChatRequest):
     start_time = time.time()
     
     try:
+        logger.info(f"📨 Получен запрос к агенту {request.agent_type}: '{request.message[:100]}...'")
+        
         # Получаем агента
         agent = get_agent(request.agent_type)
+        logger.info(f"🤖 Агент {request.agent_type} получен")
         
         # Обрабатываем запрос
+        agent_start_time = time.time()
         if request.agent_type == AgentType.HR:
+            logger.info(f"🔄 Запуск HR мультиагентной системы")
             response_text = agent.process_hr_request(request.message)
         else:
+            logger.info(f"🔄 Запуск User агента")
             response_text = agent.process_user_request(request.message)
         
-        processing_time = time.time() - start_time
+        agent_processing_time = time.time() - agent_start_time
+        total_processing_time = time.time() - start_time
         
-        logger.info(f"Запрос обработан за {processing_time:.2f}с агентом {request.agent_type}")
+        logger.info(f"✅ Агент {request.agent_type} обработал запрос за {agent_processing_time:.2f}с")
+        logger.info(f"📊 Общее время обработки: {total_processing_time:.2f}с")
         
         return ChatResponse(
             response=response_text,
             agent_type=request.agent_type,
             conversation_id=request.conversation_id,
-            processing_time=processing_time
+            processing_time=total_processing_time
         )
         
     except Exception as e:
@@ -273,6 +286,97 @@ async def get_conversation_history(conversation_id: str):
     }
 
 
+async def transcribe_audio_with_openai(file_path: str, file_extension: str) -> str:
+    """
+    Отправляет аудио файл на OpenAI API для транскрипции
+    """
+    # Определяем MIME тип на основе расширения файла
+    mime_types = {
+        '.mp3': 'audio/mpeg',
+        '.mp4': 'audio/mp4',
+        '.mpeg': 'audio/mpeg',
+        '.mpga': 'audio/mpeg',
+        '.m4a': 'audio/mp4',
+        '.wav': 'audio/wav',
+        '.webm': 'audio/webm'
+    }
+    
+    mime_type = mime_types.get(file_extension.lower(), 'audio/mpeg')
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            with open(file_path, 'rb') as audio_file:
+                files = {
+                    'file': ('audio', audio_file, mime_type)
+                }
+                data = {
+                    'model': 'whisper-1'
+                }
+                headers = {
+                    'Authorization': f'Bearer {settings.scibox_api_key}'
+                }
+                
+                logger.info(f"Отправка аудио файла на транскрипцию: {file_path} (тип: {mime_type})")
+                
+                response = await client.post(
+                    'https://llm.t1v.scibox.tech/v1/audio/transcriptions',
+                    files=files,
+                    data=data,
+                    headers=headers
+                )
+                
+                logger.info(f"Ответ от API транскрипции: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    transcribed_text = result.get('text', '')
+                    logger.info(f"Транскрипция успешна, длина текста: {len(transcribed_text)} символов")
+                    return transcribed_text
+                elif response.status_code == 401:
+                    logger.error("Ошибка авторизации при транскрипции")
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Ошибка авторизации при транскрипции аудио"
+                    )
+                elif response.status_code == 413:
+                    logger.error("Файл слишком большой для транскрипции")
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail="Аудио файл слишком большой. Максимальный размер: 25MB"
+                    )
+                elif response.status_code == 400:
+                    logger.error(f"Ошибка валидации: {response.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Ошибка валидации аудио файла: {response.text}"
+                    )
+                else:
+                    logger.error(f"Ошибка транскрипции: {response.status_code} - {response.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Ошибка транскрипции аудио: {response.text}"
+                    )
+                    
+    except httpx.TimeoutException:
+        logger.error("Таймаут при транскрипции аудио")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Таймаут при транскрипции аудио. Попробуйте файл меньшего размера."
+        )
+    except httpx.ConnectError:
+        logger.error("Ошибка подключения к серверу транскрипции")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервис транскрипции недоступен"
+        )
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при транскрипции аудио: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при транскрипции аудио: {str(e)}"
+        )
+
+
 @app.post("/audio/transcriptions", response_model=AudioTranscriptionResponse)
 async def create_audio_transcription(
     file: UploadFile = File(...),
@@ -308,16 +412,29 @@ async def create_audio_transcription(
                 detail=f"Неподдерживаемый формат файла: {file_extension}. Поддерживаемые форматы: {', '.join(allowed_extensions)}"
             )
         
+        # Валидация размера файла (максимум 25MB для OpenAI Whisper)
+        max_file_size = 25 * 1024 * 1024  # 25MB в байтах
+        content = await file.read()
+        if len(content) > max_file_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Файл слишком большой: {len(content)} байт. Максимальный размер: {max_file_size} байт (25MB)"
+            )
+        
         # Сохраняем файл во временную директорию
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
-            content = await file.read()
             temp_file.write(content)
             temp_file_path = temp_file.name
         
         try:
-            # Здесь должна быть интеграция с OpenAI Whisper API
-            # Пока что возвращаем заглушку
-            transcribed_text = f"Привет!"
+            # Транскрибируем аудио через OpenAI API
+            transcribed_text = await transcribe_audio_with_openai(temp_file_path, file_extension)
+            
+            if not transcribed_text.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось транскрибировать аудио. Возможно, файл поврежден или не содержит речи."
+                )
             
             # Обрабатываем транскрибированный текст через агента
             agent = get_agent(agent_type_enum)

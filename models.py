@@ -164,3 +164,43 @@ class AudioTranscriptionResponse(BaseModel):
     conversation_id: Optional[str] = Field(None, description="Идентификатор сессии")
     processing_time: float = Field(..., description="Время обработки в секундах")
     chat_response: Optional[ChatResponse] = Field(None, description="Ответ агента на транскрибированный текст")
+
+
+# Модели для работы с кандидатами
+class Experience(BaseModel):
+    """Опыт работы кандидата"""
+    company: str = Field(..., description="Название компании")
+    position: str = Field(..., description="Должность")
+    period: str = Field(..., description="Период работы")
+    description: str = Field(..., description="Описание работы")
+    current: bool = Field(False, description="Текущее место работы")
+
+
+class Candidate(BaseModel):
+    """Модель кандидата"""
+    id: str = Field(..., description="Уникальный идентификатор кандидата")
+    name: str = Field(..., description="ФИО кандидата")
+    position: str = Field(..., description="Желаемая позиция")
+    salary: str = Field(..., description="Желаемая зарплата")
+    age: int = Field(..., description="Возраст")
+    location: str = Field(..., description="Местоположение")
+    phone: str = Field(..., description="Телефон")
+    email: str = Field(..., description="Email")
+    telegram: str = Field(..., description="Telegram")
+    skills: List[str] = Field(..., description="Навыки и технологии")
+    experience: List[Experience] = Field(..., description="Опыт работы")
+    createdAt: str = Field(..., description="Дата создания записи")
+    status: str = Field(..., description="Статус кандидата")
+
+
+class CandidateSearchRequest(BaseModel):
+    """Запрос на поиск кандидатов"""
+    query: str = Field(..., description="Поисковый запрос")
+    candidates: List[Candidate] = Field(..., description="Список кандидатов для поиска")
+
+
+class CandidateSearchResponse(BaseModel):
+    """Ответ с найденными кандидатами"""
+    selected_candidates: List[Candidate] = Field(..., description="Выбранные кандидаты")
+    reasoning: str = Field(..., description="Обоснование выбора")
+    total_found: int = Field(..., description="Общее количество найденных кандидатов")

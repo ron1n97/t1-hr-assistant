@@ -1,0 +1,26 @@
+{
+  "basicInfo": {
+    "department": "отделении",
+    "position": "я middle фронтенд-разработчик",
+    "grade": "200к",
+    "itExperience": "3 лет"
+  },
+  "currentRole": {
+    "specialization": "",
+    "functionalRole": "",
+    "responsibilities": []
+  },
+  "additionalRole": null,
+  "workExperience": [],
+  "education": {
+    "institution": "",
+    "degree": "bachelor",
+    "specialization": "",
+    "graduationYear": ""
+  },
+  "skills": [],
+  "competencies": [],
+  "foreignLanguages": [],
+  "otherCompetencies": [],
+  "programmingLanguages": []
+}

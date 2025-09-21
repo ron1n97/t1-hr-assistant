@@ -108,7 +108,7 @@ export function HRChatPage() {
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: 'Извините, произошла ошибка при обработке голосового сообщения. Попробуйте еще раз.',
+        content: 'Извините, нет доступа к аудио моделям',
         sender: 'ai',
         timestamp: new Date()
       };

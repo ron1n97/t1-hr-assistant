@@ -103,6 +103,35 @@ POST /chat/hr
 }
 ```
 
+**Особенности HR агента:**
+HR агент теперь работает как мультиагентная система с двумя режимами:
+
+1. **Поиск кандидатов** - автоматически активируется при запросах содержащих ключевые слова:
+   - "кандидат", "найди", "поиск", "ищу", "разработчик", "программист"
+   - Названия технологий: "python", "javascript", "react", "devops" и др.
+   - Позиции: "менеджер", "дизайнер", "аналитик" и др.
+
+2. **Общие HR вопросы** - для всех остальных запросов о политиках, процедурах, льготах и т.д.
+
+**Примеры запросов для поиска кандидатов:**
+```json
+{
+  "message": "Найди frontend разработчика с опытом React"
+}
+```
+
+```json
+{
+  "message": "Ищу Python разработчика для backend"
+}
+```
+
+```json
+{
+  "message": "Покажи всех кандидатов на позицию Product Manager"
+}
+```
+
 ### 5. Чат с User агентом (упрощенный)
 ```http
 POST /chat/user
@@ -120,6 +149,38 @@ POST /chat/user
 GET /chat/history/{conversation_id}
 ```
 
+### 7. Транскрипция аудио
+```http
+POST /audio/transcriptions
+```
+
+**Параметры запроса (multipart/form-data):**
+- **file**: Аудио файл (поддерживаются форматы: mp3, mp4, mpeg, mpga, m4a, wav, webm)
+- **agent_type**: Тип агента для обработки транскрибированного текста (hr или user)
+- **conversation_id**: Идентификатор сессии (опционально)
+
+**Ответ:**
+```json
+{
+  "text": "Транскрибированный текст из аудио",
+  "agent_type": "hr",
+  "conversation_id": "session_123",
+  "processing_time": 2.45,
+  "chat_response": {
+    "response": "Ответ агента на транскрибированный текст",
+    "agent_type": "hr",
+    "conversation_id": "session_123",
+    "processing_time": 1.23,
+    "tokens_used": null
+  }
+}
+```
+
+**Ограничения:**
+- Максимальный размер файла: 25MB
+- Поддерживаемые форматы: mp3, mp4, mpeg, mpga, m4a, wav, webm
+- Таймаут обработки: 120 секунд
+
 ## Примеры использования
 
 ### cURL
@@ -136,6 +197,12 @@ curl -X POST "http://localhost:8000/chat/hr" \
 curl -X POST "http://localhost:8000/chat/user" \
   -H "Content-Type: application/json" \
   -d '{"message": "Как настроить VPN?"}'
+
+# Транскрипция аудио
+curl -X POST "http://localhost:8000/audio/transcriptions" \
+  -F "file=@audio_file.mp3" \
+  -F "agent_type=hr" \
+  -F "conversation_id=session_123"
 ```
 
 ### Python
@@ -158,6 +225,20 @@ response = requests.post(
     json={"message": "Помоги с настройкой почты"}
 )
 print(response.json())
+
+# Транскрипция аудио
+with open('audio_file.mp3', 'rb') as audio_file:
+    files = {'file': ('audio.mp3', audio_file, 'audio/mpeg')}
+    data = {
+        'agent_type': 'hr',
+        'conversation_id': 'session_123'
+    }
+    response = requests.post(
+        f"{BASE_URL}/audio/transcriptions",
+        files=files,
+        data=data
+    )
+    print(response.json())
 ```
 
 ### JavaScript/TypeScript
